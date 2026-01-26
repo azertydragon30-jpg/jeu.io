@@ -2,174 +2,198 @@
 <html lang="fr">
 <head>
     <meta charset="utf-8">
-    <title>Neon Strike - Enemy Evolution</title>
+    <title>Neon Strike - MULTIJOUEUR</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        html,body{margin:0;height:100%;overflow:hidden;font-family:sans-serif;background:#000;}
+        html,body{margin:0;height:100%;overflow:hidden;font-family:sans-serif;background:#000;color:#fff;}
         canvas{display:block;}
-        .ui-top {
-            position:absolute; left:20px; top:20px; z-index:20; color:#fff;
-            background:rgba(0,0,0,0.85); padding:15px; border-radius:10px;
-            border:1px solid #00d4ff; pointer-events:none;
-        }
-        #shieldHUD { color:#00ff88; font-weight:bold; }
-        #weaponHUD {
-            position:absolute; bottom:20px; right:20px; color:#ffdd33;
-            background:rgba(0,0,0,0.85); padding:15px; border-radius:10px;
-            font-size:20px; font-weight:bold; border:2px solid #ffdd33;
-        }
-        #shopOverlay {
-            position:fixed; inset:0; background:rgba(0,0,0,0.95);
-            color:#fff; display:none; flex-direction:column; align-items:center; justify-content:center;
-            z-index:100; overflow-y:auto; padding:20px;
-        }
-        .shop-grid { display:grid; grid-template-columns: 1fr 1fr; gap:20px; width:100%; max-width:800px; }
-        .shop-item { background:rgba(255,255,255,0.05); border:1px solid #444; padding:15px; border-radius:10px; text-align:center; }
-        button { padding:10px; background:#ffdd33; border:none; cursor:pointer; font-weight:bold; width:100%; margin-top:5px; border-radius:5px; }
-        button:disabled { background:#333; color:#777; cursor:not-allowed; }
-        #chatUI { position: absolute; left: 20px; bottom: 20px; width: 300px; }
-        #chatLog { height: 80px; overflow-y: auto; color: #fff; font-size: 12px; margin-bottom:5px; display:flex; flex-direction:column-reverse;}
-        #chatInput { width: 100%; background: rgba(255,255,255,0.1); border: none; padding: 10px; color: #fff; outline: none; }
-        #startScreen { position:fixed; inset:0; background:#000; color:#fff; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:200; }
+        
+        /* UI */
+        .ui-top { position:absolute; left:20px; top:20px; z-index:20; background:rgba(0,0,0,0.8); padding:15px; border-radius:10px; border:1px solid #00d4ff; pointer-events:none; }
+        #weaponHUD { position:absolute; bottom:20px; right:20px; color:#ffdd33; background:rgba(0,0,0,0.8); padding:15px; border-radius:10px; border:2px solid #ffdd33; font-weight:bold; }
+        
+        /* MENU MULTI */
+        #startScreen { position:fixed; inset:0; background:#000; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:200; text-align:center; }
+        .menu-box { background:rgba(255,255,255,0.05); padding:30px; border-radius:15px; border:1px solid #444; width:350px; }
+        input { width:100%; padding:10px; margin:10px 0; box-sizing:border-box; background:#111; border:1px solid #00d4ff; color:#fff; text-align:center; font-size:18px; }
+        button { width:100%; padding:12px; margin:5px 0; cursor:pointer; font-weight:bold; border-radius:5px; border:none; background:#00d4ff; color:#000; }
+        button.host { background:#ffdd33; }
+
+        #roomDisplay { position:absolute; top:20px; right:20px; background:rgba(0,0,0,0.8); padding:10px; border:1px solid #ff00ff; color:#ff00ff; font-weight:bold; display:none; }
     </style>
 </head>
 <body>
 
 <div id="startScreen">
-    <h1 style="color:#00d4ff; font-size:50px;">NEON STRIKE V5</h1>
-    <p>ZSQD: Bouger | Souris: Viser | 1-4: Armes</p>
-    <p style="color:#ff0044;">ATTENTION AUX NOUVEAUX ENNEMIS !</p>
-    <button id="startBtn" style="width:200px; height:50px;">DÉMARRER</button>
+    <h1 style="color:#00d4ff; font-size:40px; text-shadow:0 0 10px #00d4ff;">NEON STRIKE MULTI</h1>
+    <div class="menu-box">
+        <button class="host" id="btnHost">CRÉER UN SALON (HÔTE)</button>
+        <div style="margin:15px 0; color:#666;">— OU —</div>
+        <input type="text" id="joinInput" placeholder="CODE TYPE: Aa1 aA1">
+        <button id="btnJoin">REJOINDRE L'ARÈNE</button>
+        <p id="statusMsg" style="font-size:12px; color:#aaa; margin-top:10px;"></p>
+    </div>
 </div>
+
+<div id="roomDisplay">SALON: <span id="codeVal">...</span> | JOUEURS: <span id="playerCount">1</span>/10</div>
 
 <div class="ui-top">
     <div id="hearts">❤️❤️❤️</div>
-    <div id="shieldHUD">BOUCLIER: 0</div>
-    <hr style="border:0; border-top:1px solid #333; margin:10px 0;">
     VAGUE <span id="waveDisplay">1</span> | PTS: <span id="ptsDisplay">0</span>
 </div>
 
 <div id="weaponHUD">PISTOLET</div>
 
-<div id="shopOverlay">
-    <h1>BOUTIQUE D'ÉQUIPEMENT</h1>
-    <p>POINTS : <span id="shopPts">0</span></p>
-    <div class="shop-grid" id="shopContent"></div>
-    <button onclick="location.reload()" style="width:200px; margin-top:30px; background:#fff;">RETOUR</button>
-</div>
-
-<div id="chatUI">
-    <div id="chatLog"></div>
-    <input type="text" id="chatInput" placeholder="Tchat...">
-</div>
-
 <script type="module">
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.module.js";
 
-let scene, camera, renderer, playerGroup, playerLight;
-let enemies=[], bullets=[], enemyBullets=[], keys={}, yaw = 0;
-let wave=1, lives=3, enemiesToSpawn=0, gameOver=false;
+// --- VARIABLES RÉSEAU ---
+let peer, conn, isHost = false;
+let myID = "";
+let remotePlayers = {}; // Stocke les mesh des autres joueurs
+let connections = []; // Uniquement pour l'Hôte
+
+// --- VARIABLES JEU ---
+let scene, camera, renderer, playerGroup, yaw = 0;
+let enemies=[], bullets=[], keys={}, wave=1, lives=3, score=0, gameOver=false;
 let isFiring = false, lastShot = 0;
-
-// SAUVEGARDE
-let totalPts = parseInt(localStorage.getItem('ns5_pts')) || 0;
-let ownedWeapons = JSON.parse(localStorage.getItem('ns5_weapons')) || ['pistol'];
-let ownedSkins = JSON.parse(localStorage.getItem('ns5_skins')) || ['default'];
-let activeSkin = localStorage.getItem('ns5_active_skin') || 'default';
-let armor = parseInt(localStorage.getItem('ns5_armor')) || 0;
-let currentWeapon = 'pistol';
-
-const WEAPONS = {
-    pistol: { name: "PISTOLET", cost: 0, delay: 200, speed: 100, color: 0x00ffff },
-    shotgun: { name: "FUSIL POMPE", cost: 2000, delay: 800, speed: 80, color: 0xffaa00, spread: 5 },
-    minigun: { name: "MINIGUN", cost: 5000, delay: 90, speed: 120, color: 0xff00ff },
-    launcher: { name: "LANCE-ROQUETTE", cost: 8000, delay: 1200, speed: 60, color: 0xff3300 }
-};
+let activeSkin = localStorage.getItem('ns_skin') || 'default';
 
 const SKINS = {
-    default: { name: "CYAN CLASSIQUE", cost: 0, color: 0x00d4ff },
-    coneHead: { name: "CÔNE SUR CARRÉ", cost: 2500, color: 0xff00ff },
-    tank: { name: "LE TANK (CUBE)", cost: 5000, color: 0x00ff88 }
+    default: { color: 0x00d4ff },
+    coneHead: { color: 0xff00ff },
+    tank: { color: 0x00ff88 }
 };
 
-function init() {
+// --- LOGIQUE RÉSEAU ---
+
+function generateRoomCode() {
+    const c = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    const r = () => c[Math.floor(Math.random()*c.length)] + c[Math.floor(Math.random()*c.length)] + c[Math.floor(Math.random()*c.length)];
+    return r() + " " + r();
+}
+
+document.getElementById('btnHost').onclick = () => {
+    isHost = true;
+    const code = generateRoomCode();
+    initPeer(code.replace(" ", "")); // PeerJS n'aime pas les espaces dans les IDs
+    document.getElementById('codeVal').textContent = code;
+};
+
+document.getElementById('btnJoin').onclick = () => {
+    isHost = false;
+    const code = document.getElementById('joinInput').value.trim();
+    if(code.length < 5) return alert("Code invalide");
+    initPeer(null, code.replace(" ", ""));
+};
+
+function initPeer(id, targetId) {
+    document.getElementById('statusMsg').textContent = "Connexion au réseau...";
+    // Initialisation Peer
+    peer = new Peer(id ? "NS-" + id : undefined);
+
+    peer.on('open', (myPeerID) => {
+        myID = myPeerID;
+        if(isHost) {
+            setupGame();
+            document.getElementById('roomDisplay').style.display = 'block';
+        } else {
+            conn = peer.connect("NS-" + targetId);
+            setupConnection(conn);
+        }
+    });
+
+    peer.on('connection', (c) => {
+        if(connections.length >= 9) { // Max 10 (Hôte + 9)
+            c.send({type: "FULL"});
+            return c.close();
+        }
+        setupConnection(c);
+    });
+}
+
+function setupConnection(c) {
+    c.on('open', () => {
+        if(!isHost) {
+            conn = c;
+            setupGame();
+            document.getElementById('roomDisplay').style.display = 'block';
+            document.getElementById('codeVal').textContent = document.getElementById('joinInput').value;
+        } else {
+            connections.push(c);
+            updatePlayerCount();
+        }
+    });
+
+    c.on('data', (data) => {
+        if(data.type === "FULL") alert("Salon plein !");
+        if(data.type === "MOVE") {
+            updateRemotePlayer(data.id, data);
+            if(isHost) broadcast(data, c); // L'hôte relaie aux autres
+        }
+    });
+
+    c.on('close', () => {
+        // Gérer déconnexion
+        if(isHost) {
+            connections = connections.filter(conn => conn !== c);
+            updatePlayerCount();
+        }
+    });
+}
+
+function broadcast(data, excludeConn) {
+    connections.forEach(c => { if(c !== excludeConn) c.send(data); });
+}
+
+function updatePlayerCount() {
+    document.getElementById('playerCount').textContent = connections.length + 1;
+}
+
+// --- LOGIQUE JEU ---
+
+function setupGame() {
+    document.getElementById('startScreen').style.display = 'none';
+    
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x020005);
-    scene.fog = new THREE.Fog(0x020005, 10, 120);
-
     camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
     renderer = new THREE.WebGLRenderer({antialias:true});
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
 
-    scene.add(new THREE.AmbientLight(0xffffff, 0.1));
-    const grid = new THREE.GridHelper(400, 80, 0x4400ff, 0x111111);
-    scene.add(grid);
+    scene.add(new THREE.GridHelper(400, 80, 0x4400ff, 0x222222));
+    scene.add(new THREE.AmbientLight(0xffffff, 0.2));
 
     playerGroup = new THREE.Group();
-    buildPlayerMesh(activeSkin);
-    playerGroup.position.y = 1;
+    buildPlayerMesh(playerGroup, activeSkin);
     scene.add(playerGroup);
 
-    playerLight = new THREE.PointLight(SKINS[activeSkin].color, 4, 25);
-    playerGroup.add(playerLight);
-
     setupEvents();
-    startWave();
     loop();
 }
 
-function buildPlayerMesh(skinKey) {
-    while(playerGroup.children.length > 0) playerGroup.remove(playerGroup.children[0]);
-    const skin = SKINS[skinKey];
+function buildPlayerMesh(group, skinKey) {
+    const skin = SKINS[skinKey] || SKINS.default;
     const mat = new THREE.MeshStandardMaterial({color: skin.color, emissive: skin.color, emissiveIntensity: 0.5});
-    if(skinKey === 'default') {
-        playerGroup.add(new THREE.Mesh(new THREE.CapsuleGeometry(0.6, 1, 4, 8), mat));
-    } else if(skinKey === 'coneHead') {
-        const b = new THREE.Mesh(new THREE.ConeGeometry(0.8, 1.5, 8), mat);
-        const h = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), mat);
-        h.position.y = 0.9;
-        playerGroup.add(b, h);
-    } else if(skinKey === 'tank') {
-        playerGroup.add(new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.2, 1.2), mat));
+    if(skinKey === 'coneHead') {
+        const b = new THREE.Mesh(new THREE.ConeGeometry(0.7, 1.4, 8), mat);
+        const h = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), mat);
+        h.position.y = 0.8; group.add(b, h);
+    } else {
+        group.add(new THREE.Mesh(new THREE.CapsuleGeometry(0.6, 1, 4, 8), mat));
     }
 }
 
-function spawnEnemy() {
-    if (enemiesToSpawn <= 0) return;
-    
-    let type = "normal";
-    const rand = Math.random();
-    if (wave >= 2 && rand > 0.8) type = "kamikaze";
-    if (wave >= 3 && rand > 0.9) type = "tank";
-    if (wave >= 2 && rand < 0.1) type = "voleur";
-
-    let geo, mat, hp = 1, speed = 7 + wave * 0.3, color = 0xff0044;
-
-    if (type === "kamikaze") {
-        geo = new THREE.ConeGeometry(0.7, 1.5, 4);
-        speed = 15 + wave * 0.5;
-        color = 0xff3300;
-    } else if (type === "tank") {
-        geo = new THREE.BoxGeometry(2, 2, 2);
-        hp = 5;
-        speed = 4;
-        color = 0x8800ff;
-    } else if (type === "voleur") {
-        geo = new THREE.SphereGeometry(0.5, 8, 8);
-        speed = 12;
-        color = 0xffdd33;
-    } else {
-        geo = new THREE.OctahedronGeometry(1.3);
+function updateRemotePlayer(id, data) {
+    if(!remotePlayers[id]) {
+        const g = new THREE.Group();
+        buildPlayerMesh(g, data.skin);
+        scene.add(g);
+        remotePlayers[id] = g;
     }
-
-    const e = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({color: color, emissive: color, emissiveIntensity: 1}));
-    const ang = Math.random() * Math.PI * 2;
-    e.position.set(Math.cos(ang) * 80, 1.5, Math.sin(ang) * 80);
-    e.userData = { type, hp, speed, lastShot: 0 };
-    
-    enemies.push(e);
-    scene.add(e);
-    enemiesToSpawn--;
+    remotePlayers[id].position.set(data.x, 1, data.z);
+    remotePlayers[id].rotation.y = data.yaw;
 }
 
 function loop() {
@@ -177,168 +201,35 @@ function loop() {
     requestAnimationFrame(loop);
     const dt = 0.016;
 
-    if(isFiring) shoot();
-
-    // Mouvement Joueur
+    // Mouvement local
     playerGroup.rotation.y = yaw;
     const move = new THREE.Vector3();
-    if(document.activeElement !== chatInput) {
-        if(keys['KeyW']) move.add(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
-        if(keys['KeyS']) move.sub(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
-        if(keys['KeyA']) move.add(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
-        if(keys['KeyD']) move.sub(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
+    if(keys['KeyW']) move.add(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
+    if(keys['KeyS']) move.sub(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
+    if(keys['KeyA']) move.add(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
+    if(keys['KeyD']) move.sub(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
+    
+    if(move.length() > 0) {
+        playerGroup.position.addScaledVector(move.normalize(), 20 * dt);
+        // Envoi position
+        const payload = { type: "MOVE", id: myID, x: playerGroup.position.x, z: playerGroup.position.z, yaw: yaw, skin: activeSkin };
+        if(isHost) broadcast(payload, null);
+        else if(conn) conn.send(payload);
     }
-    playerGroup.position.addScaledVector(move.normalize(), 22 * dt);
+
     camera.position.set(playerGroup.position.x - Math.sin(yaw)*14, 8, playerGroup.position.z - Math.cos(yaw)*14);
     camera.lookAt(playerGroup.position);
 
-    // Spawn
-    if(enemies.length < 10) spawnEnemy();
-
-    // Logic Ennemis
-    enemies.forEach((e, i) => {
-        const dir = new THREE.Vector3().subVectors(playerGroup.position, e.position).normalize();
-        e.position.addScaledVector(dir, e.userData.speed * dt);
-        e.rotation.y += 0.05;
-
-        // Collision avec joueur
-        if(e.position.distanceTo(playerGroup.position) < 2) {
-            if(e.userData.type === "voleur") {
-                totalPts = Math.max(0, totalPts - 500);
-                addLog("-500 PTS ! LE VOLEUR T'A EU", "#ffdd33");
-            } else {
-                if(armor > 0) armor -= (e.userData.type === "tank" ? 2 : 1); 
-                else lives--;
-                addLog("TOUCHÉ !", "#ff0000");
-            }
-            scene.remove(e); enemies.splice(i, 1);
-            if(lives <= 0) endGame();
-        }
-
-        // Tir Ennemis
-        e.userData.lastShot += dt;
-        if(e.userData.type !== "kamikaze" && e.userData.type !== "voleur" && e.userData.lastShot > 3) {
-            const eb = new THREE.Mesh(new THREE.SphereGeometry(e.userData.type === "tank" ? 0.8 : 0.4), new THREE.MeshBasicMaterial({color:0xffcc00}));
-            eb.position.copy(e.position); eb.userData.dir = dir.clone();
-            enemyBullets.push(eb); scene.add(eb);
-            e.userData.lastShot = 0;
-        }
-    });
-
-    // Balles Joueur
-    bullets.forEach((b, i) => {
-        b.position.addScaledVector(b.userData.dir, b.userData.speed * dt);
-        enemies.forEach((e, ei) => {
-            if(b.position.distanceTo(e.position) < 2.5) {
-                e.userData.hp--;
-                scene.remove(b); bullets.splice(i, 1);
-                if(e.userData.hp <= 0) {
-                    totalPts += (e.userData.type === "tank" ? 500 : 150);
-                    scene.remove(e); enemies.splice(ei, 1);
-                }
-            }
-        });
-        if(b.position.length() > 200) { scene.remove(b); bullets.splice(i,1); }
-    });
-
-    // Balles Ennemis
-    enemyBullets.forEach((eb, i) => {
-        eb.position.addScaledVector(eb.userData.dir, 35 * dt);
-        if(eb.position.distanceTo(playerGroup.position) < 1.5) {
-            if(armor > 0) armor--; else lives--;
-            scene.remove(eb); enemyBullets.splice(i, 1);
-            if(lives <= 0) endGame();
-        }
-    });
-
-    if(enemies.length === 0 && enemiesToSpawn === 0) { wave++; startWave(); save(); }
-    updateUI();
     renderer.render(scene, camera);
 }
 
-function shoot() {
-    const w = WEAPONS[currentWeapon];
-    if(Date.now() - lastShot < w.delay) return;
-    lastShot = Date.now();
-    const count = w.spread || 1;
-    for(let i=0; i<count; i++) {
-        const b = new THREE.Mesh(new THREE.SphereGeometry(0.3), new THREE.MeshBasicMaterial({color:w.color}));
-        b.position.copy(playerGroup.position).y += 0.2;
-        let angle = yaw + (count > 1 ? (i - (count-1)/2) * 0.15 : 0);
-        b.userData = { dir: new THREE.Vector3(Math.sin(angle), 0, Math.cos(angle)), speed: w.speed };
-        bullets.push(b); scene.add(b);
-    }
-}
-
-function updateUI() {
-    document.getElementById('ptsDisplay').textContent = totalPts;
-    document.getElementById('hearts').textContent = "❤️".repeat(Math.max(0, lives));
-    document.getElementById('shieldHUD').textContent = "BOUCLIER: " + armor;
-    document.getElementById('waveDisplay').textContent = wave;
-}
-
-function save() {
-    localStorage.setItem('ns5_pts', totalPts);
-    localStorage.setItem('ns5_weapons', JSON.stringify(ownedWeapons));
-    localStorage.setItem('ns5_skins', JSON.stringify(ownedSkins));
-    localStorage.setItem('ns5_active_skin', activeSkin);
-    localStorage.setItem('ns5_armor', armor);
-}
-
-function endGame() {
-    gameOver = true; document.exitPointerLock();
-    save(); showShop();
-}
-
-function showShop() {
-    const ov = document.getElementById('shopOverlay');
-    ov.style.display = 'flex';
-    document.getElementById('shopPts').textContent = totalPts;
-    let h = "";
-    for(let k in WEAPONS) {
-        if(k==='pistol') continue;
-        const w = WEAPONS[k]; const own = ownedWeapons.includes(k);
-        h += `<div class="shop-item"><b>${w.name}</b><br>${w.cost} PTS<br><button onclick="buyW('${k}')" ${own || totalPts < w.cost ? 'disabled' : ''}>${own ? 'ACQUIS' : 'ACHETER'}</button></div>`;
-    }
-    for(let k in SKINS) {
-        if(k==='default') continue;
-        const s = SKINS[k]; const own = ownedSkins.includes(k);
-        h += `<div class="shop-item"><b>FORME: ${s.name}</b><br>${s.cost} PTS<br><button onclick="buyS('${k}')" ${own || totalPts < s.cost ? 'disabled' : ''}>${own ? 'POSSÉDÉ' : 'ACHETER'}</button>${own && activeSkin!==k ? `<button onclick="equip('${k}')" style="background:#00d4ff">ÉQUIPER</button>`:''}</div>`;
-    }
-    h += `<div class="shop-item"><b>RECHARGE BOUCLIER</b><br>500 PTS<br><button onclick="buyA()" ${totalPts < 500 ? 'disabled' : ''}>ACHETER (+5)</button></div>`;
-    document.getElementById('shopContent').innerHTML = h;
-}
-
-window.buyW = (k) => { totalPts -= WEAPONS[k].cost; ownedWeapons.push(k); save(); showShop(); };
-window.buyS = (k) => { totalPts -= SKINS[k].cost; ownedSkins.push(k); save(); showShop(); };
-window.equip = (k) => { activeSkin = k; buildPlayerMesh(k); save(); showShop(); };
-window.buyA = () => { totalPts -= 500; armor += 5; save(); showShop(); };
-
-function startWave() { enemiesToSpawn = 8 + wave * 3; addLog("VAGUE " + wave, "#00d4ff"); }
-function addLog(m, c="#fff") { const l = document.getElementById('chatLog'); const d = document.createElement('div'); d.style.color=c; d.textContent=m; l.prepend(d); }
-function handleChat() {
-    const v = chatInput.value.trim().toLowerCase(); chatInput.value=""; chatInput.blur();
-    if(v === "/money") { totalPts += 5000; addLog("CHEAT: +5000", "#ffdd33"); }
-}
-
 function setupEvents() {
-    window.addEventListener('keydown', e => {
-        if(document.activeElement === chatInput) { if(e.key==='Enter') handleChat(); return; }
-        keys[e.code] = true;
-        if(e.key === '1') switchWeapon('pistol');
-        if(e.key === '2') switchWeapon('shotgun');
-        if(e.key === '3') switchWeapon('minigun');
-        if(e.key === '4') switchWeapon('launcher');
-        if(e.key === 'Enter') chatInput.focus();
-    });
+    window.addEventListener('keydown', e => keys[e.code] = true);
     window.addEventListener('keyup', e => keys[e.code] = false);
     document.addEventListener('mousemove', e => { if(document.pointerLockElement) yaw -= e.movementX * 0.003; });
-    window.addEventListener('mousedown', () => { if(!gameOver) { isFiring = true; renderer.domElement.requestPointerLock(); } });
-    window.addEventListener('mouseup', () => isFiring = false);
+    window.addEventListener('mousedown', () => renderer.domElement.requestPointerLock());
 }
-function switchWeapon(id) { if(ownedWeapons.includes(id)) { currentWeapon = id; document.getElementById('weaponHUD').textContent = WEAPONS[id].name; } }
 
-document.getElementById('startBtn').onclick = () => { document.getElementById('startScreen').style.display='none'; init(); };
 </script>
 </body>
 </html>
