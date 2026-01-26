@@ -2,44 +2,29 @@
 <html lang="fr">
 <head>
     <meta charset="utf-8">
-    <title>Neon Strike - MULTIJOUEUR</title>
-    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <title>Neon Strike - MULTI PLAYROOM</title>
+    <script src="https://unpkg.com/playroomkit/multiplayer.js"></script>
     <style>
-        html,body{margin:0;height:100%;overflow:hidden;font-family:sans-serif;background:#000;color:#fff;}
-        canvas{display:block;}
-        
-        /* UI */
-        .ui-top { position:absolute; left:20px; top:20px; z-index:20; background:rgba(0,0,0,0.8); padding:15px; border-radius:10px; border:1px solid #00d4ff; pointer-events:none; }
-        #weaponHUD { position:absolute; bottom:20px; right:20px; color:#ffdd33; background:rgba(0,0,0,0.8); padding:15px; border-radius:10px; border:2px solid #ffdd33; font-weight:bold; }
-        
-        /* MENU MULTI */
-        #startScreen { position:fixed; inset:0; background:#000; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:200; text-align:center; }
-        .menu-box { background:rgba(255,255,255,0.05); padding:30px; border-radius:15px; border:1px solid #444; width:350px; }
-        input { width:100%; padding:10px; margin:10px 0; box-sizing:border-box; background:#111; border:1px solid #00d4ff; color:#fff; text-align:center; font-size:18px; }
-        button { width:100%; padding:12px; margin:5px 0; cursor:pointer; font-weight:bold; border-radius:5px; border:none; background:#00d4ff; color:#000; }
-        button.host { background:#ffdd33; }
-
-        #roomDisplay { position:absolute; top:20px; right:20px; background:rgba(0,0,0,0.8); padding:10px; border:1px solid #ff00ff; color:#ff00ff; font-weight:bold; display:none; }
+        html, body { margin: 0; height: 100%; overflow: hidden; background: #000; font-family: sans-serif; }
+        canvas { display: block; }
+        .ui-overlay {
+            position: absolute; top: 20px; left: 20px; z-index: 10;
+            color: #fff; background: rgba(0,0,0,0.7); padding: 15px;
+            border-radius: 10px; border: 1px solid #00d4ff; pointer-events: none;
+        }
+        #weaponHUD {
+            position: absolute; bottom: 20px; right: 20px; color: #ffdd33;
+            background: rgba(0,0,0,0.8); padding: 15px; border-radius: 10px;
+            border: 2px solid #ffdd33; font-weight: bold; font-size: 18px;
+        }
     </style>
 </head>
 <body>
 
-<div id="startScreen">
-    <h1 style="color:#00d4ff; font-size:40px; text-shadow:0 0 10px #00d4ff;">NEON STRIKE MULTI</h1>
-    <div class="menu-box">
-        <button class="host" id="btnHost">CRÉER UN SALON (HÔTE)</button>
-        <div style="margin:15px 0; color:#666;">— OU —</div>
-        <input type="text" id="joinInput" placeholder="CODE TYPE: Aa1 aA1">
-        <button id="btnJoin">REJOINDRE L'ARÈNE</button>
-        <p id="statusMsg" style="font-size:12px; color:#aaa; margin-top:10px;"></p>
-    </div>
-</div>
-
-<div id="roomDisplay">SALON: <span id="codeVal">...</span> | JOUEURS: <span id="playerCount">1</span>/10</div>
-
-<div class="ui-top">
-    <div id="hearts">❤️❤️❤️</div>
-    VAGUE <span id="waveDisplay">1</span> | PTS: <span id="ptsDisplay">0</span>
+<div class="ui-overlay">
+    <div id="status">Connexion au salon...</div>
+    <div id="playerList">Joueurs: 1/10</div>
+    <div id="scoreHUD">Points: 0</div>
 </div>
 
 <div id="weaponHUD">PISTOLET</div>
@@ -47,17 +32,13 @@
 <script type="module">
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.module.js";
 
-// --- VARIABLES RÉSEAU ---
-let peer, conn, isHost = false;
-let myID = "";
-let remotePlayers = {}; // Stocke les mesh des autres joueurs
-let connections = []; // Uniquement pour l'Hôte
+// --- CONFIGURATION PLAYROOM ---
+const { insertCoin, myPlayer, onPlayerJoin, isHost } = Playroom;
 
-// --- VARIABLES JEU ---
-let scene, camera, renderer, playerGroup, yaw = 0;
-let enemies=[], bullets=[], keys={}, wave=1, lives=3, score=0, gameOver=false;
-let isFiring = false, lastShot = 0;
-let activeSkin = localStorage.getItem('ns_skin') || 'default';
+let scene, camera, renderer, yaw = 0;
+let players = []; // Liste des états des joueurs
+let playerMeshes = {}; // ID -> Mesh Three.js
+let keys = {};
 
 const SKINS = {
     default: { color: 0x00d4ff },
@@ -65,117 +46,45 @@ const SKINS = {
     tank: { color: 0x00ff88 }
 };
 
-// --- LOGIQUE RÉSEAU ---
+// --- INITIALISATION ---
 
-function generateRoomCode() {
-    const c = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    const r = () => c[Math.floor(Math.random()*c.length)] + c[Math.floor(Math.random()*c.length)] + c[Math.floor(Math.random()*c.length)];
-    return r() + " " + r();
-}
-
-document.getElementById('btnHost').onclick = () => {
-    isHost = true;
-    const code = generateRoomCode();
-    initPeer(code.replace(" ", "")); // PeerJS n'aime pas les espaces dans les IDs
-    document.getElementById('codeVal').textContent = code;
-};
-
-document.getElementById('btnJoin').onclick = () => {
-    isHost = false;
-    const code = document.getElementById('joinInput').value.trim();
-    if(code.length < 5) return alert("Code invalide");
-    initPeer(null, code.replace(" ", ""));
-};
-
-function initPeer(id, targetId) {
-    document.getElementById('statusMsg').textContent = "Connexion au réseau...";
-    // Initialisation Peer
-    peer = new Peer(id ? "NS-" + id : undefined);
-
-    peer.on('open', (myPeerID) => {
-        myID = myPeerID;
-        if(isHost) {
-            setupGame();
-            document.getElementById('roomDisplay').style.display = 'block';
-        } else {
-            conn = peer.connect("NS-" + targetId);
-            setupConnection(conn);
-        }
+async function start() {
+    // 1. Lancement du multijoueur (interface de lobby automatique)
+    await insertCoin({
+        gameId: "neon-strike-v7", // ID unique pour ton jeu
+        maxPlayersPerRoom: 10,
     });
 
-    peer.on('connection', (c) => {
-        if(connections.length >= 9) { // Max 10 (Hôte + 9)
-            c.send({type: "FULL"});
-            return c.close();
-        }
-        setupConnection(c);
+    setupScene();
+
+    // 2. Gestion des joueurs qui rejoignent
+    onPlayerJoin((state) => {
+        const id = state.id;
+        const color = state.getProfile().color.hex;
+        
+        // Création du personnage pour ce joueur
+        const group = new THREE.Group();
+        buildPlayerMesh(group, state.getCustomProperty("skin") || "default", color);
+        scene.add(group);
+        
+        playerMeshes[id] = group;
+        players.push(state);
+
+        // Si le joueur quitte
+        state.onQuit(() => {
+            scene.remove(playerMeshes[id]);
+            delete playerMeshes[id];
+        });
     });
-}
-
-function setupConnection(c) {
-    c.on('open', () => {
-        if(!isHost) {
-            conn = c;
-            setupGame();
-            document.getElementById('roomDisplay').style.display = 'block';
-            document.getElementById('codeVal').textContent = document.getElementById('joinInput').value;
-        } else {
-            connections.push(c);
-            updatePlayerCount();
-        }
-    });
-
-    c.on('data', (data) => {
-        if(data.type === "FULL") alert("Salon plein !");
-        if(data.type === "MOVE") {
-            updateRemotePlayer(data.id, data);
-            if(isHost) broadcast(data, c); // L'hôte relaie aux autres
-        }
-    });
-
-    c.on('close', () => {
-        // Gérer déconnexion
-        if(isHost) {
-            connections = connections.filter(conn => conn !== c);
-            updatePlayerCount();
-        }
-    });
-}
-
-function broadcast(data, excludeConn) {
-    connections.forEach(c => { if(c !== excludeConn) c.send(data); });
-}
-
-function updatePlayerCount() {
-    document.getElementById('playerCount').textContent = connections.length + 1;
-}
-
-// --- LOGIQUE JEU ---
-
-function setupGame() {
-    document.getElementById('startScreen').style.display = 'none';
-    
-    scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x020005);
-    camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-    renderer = new THREE.WebGLRenderer({antialias:true});
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    document.body.appendChild(renderer.domElement);
-
-    scene.add(new THREE.GridHelper(400, 80, 0x4400ff, 0x222222));
-    scene.add(new THREE.AmbientLight(0xffffff, 0.2));
-
-    playerGroup = new THREE.Group();
-    buildPlayerMesh(playerGroup, activeSkin);
-    scene.add(playerGroup);
 
     setupEvents();
     loop();
 }
 
-function buildPlayerMesh(group, skinKey) {
-    const skin = SKINS[skinKey] || SKINS.default;
-    const mat = new THREE.MeshStandardMaterial({color: skin.color, emissive: skin.color, emissiveIntensity: 0.5});
+function buildPlayerMesh(group, skinKey, color) {
+    while(group.children.length > 0) group.remove(group.children[0]);
+    const mat = new THREE.MeshStandardMaterial({color: color, emissive: color, emissiveIntensity: 0.5});
+    
     if(skinKey === 'coneHead') {
         const b = new THREE.Mesh(new THREE.ConeGeometry(0.7, 1.4, 8), mat);
         const h = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), mat);
@@ -185,51 +94,85 @@ function buildPlayerMesh(group, skinKey) {
     }
 }
 
-function updateRemotePlayer(id, data) {
-    if(!remotePlayers[id]) {
-        const g = new THREE.Group();
-        buildPlayerMesh(g, data.skin);
-        scene.add(g);
-        remotePlayers[id] = g;
-    }
-    remotePlayers[id].position.set(data.x, 1, data.z);
-    remotePlayers[id].rotation.y = data.yaw;
+function setupScene() {
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x020005);
+    camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+    renderer = new THREE.WebGLRenderer({antialias:true});
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    scene.add(new THREE.GridHelper(500, 100, 0x4400ff, 0x111111));
+    scene.add(new THREE.AmbientLight(0xffffff, 0.3));
 }
 
 function loop() {
-    if(gameOver) return;
     requestAnimationFrame(loop);
     const dt = 0.016;
+    const me = myPlayer();
 
-    // Mouvement local
-    playerGroup.rotation.y = yaw;
-    const move = new THREE.Vector3();
-    if(keys['KeyW']) move.add(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
-    if(keys['KeyS']) move.sub(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
-    if(keys['KeyA']) move.add(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
-    if(keys['KeyD']) move.sub(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
-    
-    if(move.length() > 0) {
-        playerGroup.position.addScaledVector(move.normalize(), 20 * dt);
-        // Envoi position
-        const payload = { type: "MOVE", id: myID, x: playerGroup.position.x, z: playerGroup.position.z, yaw: yaw, skin: activeSkin };
-        if(isHost) broadcast(payload, null);
-        else if(conn) conn.send(payload);
+    // 1. Logique Joueur Local
+    if(me) {
+        const myMesh = playerMeshes[me.id];
+        if(myMesh) {
+            const move = new THREE.Vector3();
+            if(keys['KeyW']) move.add(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
+            if(keys['KeyS']) move.sub(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
+            if(keys['KeyA']) move.add(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
+            if(keys['KeyD']) move.sub(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
+
+            if(move.length() > 0) {
+                myMesh.position.addScaledVector(move.normalize(), 20 * dt);
+            }
+            myMesh.rotation.y = yaw;
+
+            // ENVOI DE LA POSITION AU SERVEUR PLAYROOM
+            me.setState("pos", { x: myMesh.position.x, z: myMesh.position.z });
+            me.setState("yaw", yaw);
+
+            // Placement caméra
+            camera.position.set(myMesh.position.x - Math.sin(yaw)*15, 8, myMesh.position.z - Math.cos(yaw)*15);
+            camera.lookAt(myMesh.position);
+        }
     }
 
-    camera.position.set(playerGroup.position.x - Math.sin(yaw)*14, 8, playerGroup.position.z - Math.cos(yaw)*14);
-    camera.lookAt(playerGroup.position);
+    // 2. Synchronisation des autres joueurs
+    players.forEach(state => {
+        if(state.id === me.id) return; // Ne pas se synchroniser soi-même
+        
+        const mesh = playerMeshes[state.id];
+        const pos = state.getState("pos");
+        const rYaw = state.getState("yaw");
 
+        if(mesh && pos) {
+            // Interpolation douce (lerp) pour éviter les saccades
+            mesh.position.x = THREE.MathUtils.lerp(mesh.position.x, pos.x, 0.2);
+            mesh.position.z = THREE.MathUtils.lerp(mesh.position.z, pos.z, 0.2);
+            mesh.rotation.y = rYaw || 0;
+        }
+    });
+
+    document.getElementById('playerList').textContent = `Joueurs: ${players.length}/10`;
     renderer.render(scene, camera);
 }
 
 function setupEvents() {
-    window.addEventListener('keydown', e => keys[e.code] = true);
+    window.addEventListener('keydown', e => {
+        keys[e.code] = true;
+        // Changement de skin local pour tester (on pourrait le mettre en boutique plus tard)
+        if(e.key === 'k') { 
+            const newSkin = "coneHead";
+            myPlayer().setState("skin", newSkin); 
+            buildPlayerMesh(playerMeshes[myPlayer().id], newSkin, myPlayer().getProfile().color.hex);
+        }
+    });
     window.addEventListener('keyup', e => keys[e.code] = false);
     document.addEventListener('mousemove', e => { if(document.pointerLockElement) yaw -= e.movementX * 0.003; });
     window.addEventListener('mousedown', () => renderer.domElement.requestPointerLock());
 }
 
+// Lancement !
+start();
 </script>
 </body>
 </html>
