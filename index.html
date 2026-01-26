@@ -1,69 +1,40 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="utf-8">
-    <title>Neon Strike - MULTI PLAYROOM</title>
-    <script src="https://unpkg.com/playroomkit/multiplayer.js"></script>
-    <style>
-        html, body { margin: 0; height: 100%; overflow: hidden; background: #000; font-family: sans-serif; }
-        canvas { display: block; }
-        .ui-overlay {
-            position: absolute; top: 20px; left: 20px; z-index: 10;
-            color: #fff; background: rgba(0,0,0,0.7); padding: 15px;
-            border-radius: 10px; border: 1px solid #00d4ff; pointer-events: none;
-        }
-        #weaponHUD {
-            position: absolute; bottom: 20px; right: 20px; color: #ffdd33;
-            background: rgba(0,0,0,0.8); padding: 15px; border-radius: 10px;
-            border: 2px solid #ffdd33; font-weight: bold; font-size: 18px;
-        }
-    </style>
-</head>
-<body>
-
-<div class="ui-overlay">
-    <div id="status">Connexion au salon...</div>
-    <div id="playerList">Joueurs: 1/10</div>
-    <div id="scoreHUD">Points: 0</div>
-</div>
-
-<div id="weaponHUD">PISTOLET</div>
-
 <script type="module">
-// On importe TOUT ici, comme ça pas d'erreur de définition
+// 1. Importations propres
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.module.js";
+
+// On utilise le lien "dist" qui est fait pour le navigateur
 import { 
     insertCoin, 
-    myPlayer, 
     onPlayerJoin, 
-    isHost,
-    getState,
-    setState
-} from "https://unpkg.com/playroomkit@0.0.82/multiplayer.js"; 
+    myPlayer, 
+    setState, 
+    getState, 
+    isHost 
+} from "https://unpkg.com/playroomkit/dist/multiplayer.js";
 
-// Maintenant, plus besoin de faire "const { ... } = Playroom;"
-// Les fonctions sont déjà prêtes !
-
+// --- VARIABLES DU JEU ---
 let scene, camera, renderer, yaw = 0;
 let players = []; 
 let playerMeshes = {}; 
 let keys = {};
 
-// ... Le reste du code reste le même ...
-
 async function start() {
     try {
+        // 2. Initialisation
         await insertCoin({
-            gameId: "neon-strike-v7",
+            gameId: "neon-strike-v7-dragon", // Change l'ID pour ton projet
             maxPlayersPerRoom: 10,
         });
+
         setupScene();
         
         onPlayerJoin((state) => {
-            console.log("Nouveau joueur :", state.id);
             const color = state.getProfile().color.hex;
             const group = new THREE.Group();
+            
+            // On crée le mesh (notre fameux cône ou capsule)
             buildPlayerMesh(group, state.getCustomProperty("skin") || "default", color);
+            
             scene.add(group);
             playerMeshes[state.id] = group;
             players.push(state);
@@ -71,19 +42,90 @@ async function start() {
             state.onQuit(() => {
                 scene.remove(playerMeshes[state.id]);
                 delete playerMeshes[state.id];
+                players = players.filter(p => p.id !== state.id);
             });
         });
 
         setupEvents();
         loop();
-    } catch (e) {
-        console.error("Erreur Playroom:", e);
+        
+    } catch (err) {
+        console.error("Erreur de lancement :", err);
     }
 }
 
-// Relance le jeu
+// --- LES FONCTIONS DE RENDU (Même que précédemment) ---
+
+function buildPlayerMesh(group, skinKey, color) {
+    while(group.children.length > 0) group.remove(group.children[0]);
+    const mat = new THREE.MeshStandardMaterial({color: color, emissive: color, emissiveIntensity: 0.5});
+    if(skinKey === 'coneHead') {
+        const b = new THREE.Mesh(new THREE.ConeGeometry(0.7, 1.4, 8), mat);
+        const h = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), mat);
+        h.position.y = 0.8; group.add(b, h);
+    } else {
+        group.add(new THREE.Mesh(new THREE.CapsuleGeometry(0.6, 1, 4, 8), mat));
+    }
+}
+
+function setupScene() {
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x020005);
+    camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+    renderer = new THREE.WebGLRenderer({antialias:true});
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+    scene.add(new THREE.GridHelper(500, 100, 0x4400ff, 0x111111));
+    scene.add(new THREE.AmbientLight(0xffffff, 0.3));
+}
+
+function loop() {
+    requestAnimationFrame(loop);
+    const dt = 0.016;
+    const me = myPlayer();
+
+    if(me && playerMeshes[me.id]) {
+        const myMesh = playerMeshes[me.id];
+        const move = new THREE.Vector3();
+        if(keys['KeyW']) move.add(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
+        if(keys['KeyS']) move.sub(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
+        if(keys['KeyA']) move.add(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
+        if(keys['KeyD']) move.sub(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
+
+        if(move.length() > 0) myMesh.position.addScaledVector(move.normalize(), 20 * dt);
+        myMesh.rotation.y = yaw;
+
+        // Synchronisation Playroom
+        me.setState("pos", { x: myMesh.position.x, z: myMesh.position.z });
+        me.setState("yaw", yaw);
+
+        camera.position.set(myMesh.position.x - Math.sin(yaw)*15, 8, myMesh.position.z - Math.cos(yaw)*15);
+        camera.lookAt(myMesh.position);
+    }
+
+    // Mise à jour des autres
+    players.forEach(state => {
+        if(state.id === me?.id) return;
+        const mesh = playerMeshes[state.id];
+        const pos = state.getState("pos");
+        if(mesh && pos) {
+            mesh.position.x = THREE.MathUtils.lerp(mesh.position.x, pos.x, 0.2);
+            mesh.position.z = THREE.MathUtils.lerp(mesh.position.z, pos.z, 0.2);
+            mesh.rotation.y = state.getState("yaw") || 0;
+        }
+    });
+
+    renderer.render(scene, camera);
+}
+
+function setupEvents() {
+    window.addEventListener('keydown', e => keys[e.code] = true);
+    window.addEventListener('keyup', e => keys[e.code] = false);
+    document.addEventListener('mousemove', e => { if(document.pointerLockElement) yaw -= e.movementX * 0.003; });
+    window.addEventListener('mousedown', () => renderer.domElement.requestPointerLock());
+}
+
 start();
 </script>
-</body>
-</html>
+
 
