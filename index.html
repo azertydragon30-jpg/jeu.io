@@ -30,149 +30,60 @@
 <div id="weaponHUD">PISTOLET</div>
 
 <script type="module">
+// On importe TOUT ici, comme ça pas d'erreur de définition
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.module.js";
+import { 
+    insertCoin, 
+    myPlayer, 
+    onPlayerJoin, 
+    isHost,
+    getState,
+    setState
+} from "https://unpkg.com/playroomkit@0.0.82/multiplayer.js"; 
 
-// --- CONFIGURATION PLAYROOM ---
-const { insertCoin, myPlayer, onPlayerJoin, isHost } = Playroom;
+// Maintenant, plus besoin de faire "const { ... } = Playroom;"
+// Les fonctions sont déjà prêtes !
 
 let scene, camera, renderer, yaw = 0;
-let players = []; // Liste des états des joueurs
-let playerMeshes = {}; // ID -> Mesh Three.js
+let players = []; 
+let playerMeshes = {}; 
 let keys = {};
 
-const SKINS = {
-    default: { color: 0x00d4ff },
-    coneHead: { color: 0xff00ff },
-    tank: { color: 0x00ff88 }
-};
-
-// --- INITIALISATION ---
+// ... Le reste du code reste le même ...
 
 async function start() {
-    // 1. Lancement du multijoueur (interface de lobby automatique)
-    await insertCoin({
-        gameId: "neon-strike-v7", // ID unique pour ton jeu
-        maxPlayersPerRoom: 10,
-    });
-
-    setupScene();
-
-    // 2. Gestion des joueurs qui rejoignent
-    onPlayerJoin((state) => {
-        const id = state.id;
-        const color = state.getProfile().color.hex;
-        
-        // Création du personnage pour ce joueur
-        const group = new THREE.Group();
-        buildPlayerMesh(group, state.getCustomProperty("skin") || "default", color);
-        scene.add(group);
-        
-        playerMeshes[id] = group;
-        players.push(state);
-
-        // Si le joueur quitte
-        state.onQuit(() => {
-            scene.remove(playerMeshes[id]);
-            delete playerMeshes[id];
+    try {
+        await insertCoin({
+            gameId: "neon-strike-v7",
+            maxPlayersPerRoom: 10,
         });
-    });
-
-    setupEvents();
-    loop();
-}
-
-function buildPlayerMesh(group, skinKey, color) {
-    while(group.children.length > 0) group.remove(group.children[0]);
-    const mat = new THREE.MeshStandardMaterial({color: color, emissive: color, emissiveIntensity: 0.5});
-    
-    if(skinKey === 'coneHead') {
-        const b = new THREE.Mesh(new THREE.ConeGeometry(0.7, 1.4, 8), mat);
-        const h = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), mat);
-        h.position.y = 0.8; group.add(b, h);
-    } else {
-        group.add(new THREE.Mesh(new THREE.CapsuleGeometry(0.6, 1, 4, 8), mat));
-    }
-}
-
-function setupScene() {
-    scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x020005);
-    camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-    renderer = new THREE.WebGLRenderer({antialias:true});
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    document.body.appendChild(renderer.domElement);
-
-    scene.add(new THREE.GridHelper(500, 100, 0x4400ff, 0x111111));
-    scene.add(new THREE.AmbientLight(0xffffff, 0.3));
-}
-
-function loop() {
-    requestAnimationFrame(loop);
-    const dt = 0.016;
-    const me = myPlayer();
-
-    // 1. Logique Joueur Local
-    if(me) {
-        const myMesh = playerMeshes[me.id];
-        if(myMesh) {
-            const move = new THREE.Vector3();
-            if(keys['KeyW']) move.add(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
-            if(keys['KeyS']) move.sub(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
-            if(keys['KeyA']) move.add(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
-            if(keys['KeyD']) move.sub(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
-
-            if(move.length() > 0) {
-                myMesh.position.addScaledVector(move.normalize(), 20 * dt);
-            }
-            myMesh.rotation.y = yaw;
-
-            // ENVOI DE LA POSITION AU SERVEUR PLAYROOM
-            me.setState("pos", { x: myMesh.position.x, z: myMesh.position.z });
-            me.setState("yaw", yaw);
-
-            // Placement caméra
-            camera.position.set(myMesh.position.x - Math.sin(yaw)*15, 8, myMesh.position.z - Math.cos(yaw)*15);
-            camera.lookAt(myMesh.position);
-        }
-    }
-
-    // 2. Synchronisation des autres joueurs
-    players.forEach(state => {
-        if(state.id === me.id) return; // Ne pas se synchroniser soi-même
+        setupScene();
         
-        const mesh = playerMeshes[state.id];
-        const pos = state.getState("pos");
-        const rYaw = state.getState("yaw");
+        onPlayerJoin((state) => {
+            console.log("Nouveau joueur :", state.id);
+            const color = state.getProfile().color.hex;
+            const group = new THREE.Group();
+            buildPlayerMesh(group, state.getCustomProperty("skin") || "default", color);
+            scene.add(group);
+            playerMeshes[state.id] = group;
+            players.push(state);
 
-        if(mesh && pos) {
-            // Interpolation douce (lerp) pour éviter les saccades
-            mesh.position.x = THREE.MathUtils.lerp(mesh.position.x, pos.x, 0.2);
-            mesh.position.z = THREE.MathUtils.lerp(mesh.position.z, pos.z, 0.2);
-            mesh.rotation.y = rYaw || 0;
-        }
-    });
+            state.onQuit(() => {
+                scene.remove(playerMeshes[state.id]);
+                delete playerMeshes[state.id];
+            });
+        });
 
-    document.getElementById('playerList').textContent = `Joueurs: ${players.length}/10`;
-    renderer.render(scene, camera);
+        setupEvents();
+        loop();
+    } catch (e) {
+        console.error("Erreur Playroom:", e);
+    }
 }
 
-function setupEvents() {
-    window.addEventListener('keydown', e => {
-        keys[e.code] = true;
-        // Changement de skin local pour tester (on pourrait le mettre en boutique plus tard)
-        if(e.key === 'k') { 
-            const newSkin = "coneHead";
-            myPlayer().setState("skin", newSkin); 
-            buildPlayerMesh(playerMeshes[myPlayer().id], newSkin, myPlayer().getProfile().color.hex);
-        }
-    });
-    window.addEventListener('keyup', e => keys[e.code] = false);
-    document.addEventListener('mousemove', e => { if(document.pointerLockElement) yaw -= e.movementX * 0.003; });
-    window.addEventListener('mousedown', () => renderer.domElement.requestPointerLock());
-}
-
-// Lancement !
+// Relance le jeu
 start();
 </script>
 </body>
 </html>
+
