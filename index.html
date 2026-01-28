@@ -2,139 +2,201 @@
 <html lang="fr">
 <head>
     <meta charset="utf-8">
-    <title>Neon Strike - Cloud Server</title>
+    <title>Neon Strike - Cloud Edition</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.155.0/three.min.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     
     <style>
-        html,body{margin:0;height:100%;overflow:hidden;background:#000;color:#fff;font-family:sans-serif;}
-        canvas{display:block;}
-        #ui{position:absolute;top:20px;left:20px;background:rgba(0,0,0,0.8);padding:15px;border:1px solid #00d4ff;border-radius:10px;}
-        #login{position:fixed;inset:0;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:100;}
-        .box{background:#111;padding:30px;border:1px solid #444;border-radius:15px;text-align:center;}
-        button{padding:12px 25px;cursor:pointer;font-weight:bold;background:#00d4ff;border:none;border-radius:5px;}
+        html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: #fff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        canvas { display: block; }
+        #ui { position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.8); padding: 15px; border: 1px solid #00d4ff; border-radius: 10px; pointer-events: none; }
+        #login { position: fixed; inset: 0; background: #000; display: flex; flex-direction: column; align-items: center; justify-content:center; z-index: 100; }
+        .box { background: #111; padding: 40px; border: 2px solid #00d4ff; border-radius: 20px; text-align: center; box-shadow: 0 0 20px rgba(0, 212, 255, 0.2); }
+        button { padding: 15px 35px; cursor: pointer; font-weight: bold; background: #00d4ff; border: none; border-radius: 5px; color: #000; font-size: 16px; transition: 0.3s; }
+        button:hover { background: #fff; transform: scale(1.05); }
+        #status { font-size: 12px; color: #888; margin-top: 15px; }
     </style>
 </head>
 <body>
 
 <div id="login">
     <div class="box">
-        <h1 style="color:#00d4ff;">NEON STRIKE CLOUD</h1>
-        <p>Connexion via serveur central (Ably)</p>
+        <h1 style="color:#00d4ff; margin-bottom: 5px;">NEON STRIKE</h1>
+        <p style="margin-bottom: 25px;">Serveur Cloud Centralisé</p>
         <button onclick="connectToCloud()">REJOINDRE L'ARÈNE</button>
-        <p id="loader" style="display:none;font-size:12px;color:#888;">Initialisation du serveur...</p>
+        <div id="status">En attente de connexion...</div>
     </div>
 </div>
 
-<div id="ui">JOUEURS EN LIGNE: <span id="count">1</span></div>
+<div id="ui">
+    <div>JOUEURS EN LIGNE: <span id="playerCount">1</span></div>
+    <div style="font-size: 10px; color: #555; margin-top: 5px;">Serveur: Ably Realtime</div>
+</div>
 
 <script>
+// --- CONFIGURATION ---
+const ABLY_KEY = 'hoXqWQ.xS6MJA:4jw_S7dp30pIrB7Sm3tCM6S4WQa57PAqkPdp-WN-Ros'; // <-- COLLE TA CLÉ RACINE ICI
 let ably, channel, myID;
 let scene, camera, renderer, playerGroup, yaw = 0;
-let others = {};
+let otherPlayers = {}; 
 let keys = {};
+let lastSendTime = 0;
+let lastYaw = 0;
 
 async function connectToCloud() {
-    document.getElementById('loader').style.display = 'block';
-    
-    // 1. Connexion au serveur Ably (Clé publique gratuite)
-    // Note: Dans un vrai projet, on utilise un token, mais pour ton test GitHub, c'est parfait.
-    ably = new Ably.Realtime('hoXqWQ.xS6MJA:4jw_S7dp30pIrB7Sm3tCM6S4WQa57PAqkPdp-WN-Ros'); // Je vais t'expliquer comment avoir ta clé
-    
-    // Si tu n'as pas encore de clé, on peut simuler pour que tu vois le code :
-    myID = "player-" + Math.random().toString(36).substr(2, 5);
-    channel = ably.channels.get('neon-strike-room');
+    const status = document.getElementById('status');
+    status.textContent = "Authentification...";
 
-    // 2. Écouter les autres joueurs
-    channel.subscribe('update', (msg) => {
-        if(msg.data.id !== myID) {
-            updateOtherPlayer(msg.data);
-        }
-    });
+    try {
+        // 1. Initialisation Ably
+        ably = new Ably.Realtime(ABLY_KEY);
+        myID = "player-" + Math.random().toString(36).substr(2, 5);
+        channel = ably.channels.get('neon-strike-main');
 
-    // 3. Quand quelqu'un quitte
-    channel.presence.subscribe('leave', (member) => {
-        if(others[member.clientId]) {
-            scene.remove(others[member.clientId]);
-            delete others[member.clientId];
-        }
-    });
+        // 2. Écoute des mises à jour des autres
+        channel.subscribe('update', (msg) => {
+            if(msg.data.id !== myID) {
+                updateRemotePlayer(msg.data);
+            }
+        });
 
-    initGame();
+        // 3. Gestion des déconnexions (Presence)
+        channel.presence.subscribe('leave', (member) => {
+            if(otherPlayers[member.clientId]) {
+                scene.remove(otherPlayers[member.clientId]);
+                delete otherPlayers[member.clientId];
+            }
+        });
+        channel.presence.enter();
+
+        initGame();
+    } catch (err) {
+        status.textContent = "Erreur: Clé invalide ou problème réseau.";
+        console.error(err);
+    }
 }
 
 function initGame() {
     document.getElementById('login').style.display = 'none';
     
+    // Scène
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x020005);
     camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-    renderer = new THREE.WebGLRenderer({antialias:true});
+    
+    renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
 
+    // Lumières et Décor
     scene.add(new THREE.GridHelper(500, 100, 0x4400ff, 0x111111));
-    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
 
-    playerGroup = createMesh(0x00d4ff);
+    // Création de MON personnage (Cône + Tête carrée)
+    playerGroup = createPlayerMesh(0x00d4ff);
     scene.add(playerGroup);
 
     setupControls();
     loop();
 }
 
-function createMesh(color) {
-    const g = new THREE.Group();
-    const mat = new THREE.MeshStandardMaterial({color: color, emissive: color, emissiveIntensity: 0.5});
-    g.add(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), mat)); // Simple cube pour le test
-    return g;
+function createPlayerMesh(color) {
+    const group = new THREE.Group();
+    const material = new THREE.MeshStandardMaterial({ 
+        color: color, 
+        emissive: color, 
+        emissiveIntensity: 0.5 
+    });
+    
+    // Corps (Cône)
+    const body = new THREE.Mesh(new THREE.ConeGeometry(0.7, 1.6, 8), material);
+    body.position.y = 0.8;
+    
+    // Tête (Cube)
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), material);
+    head.position.y = 1.7;
+    
+    group.add(body, head);
+    return group;
 }
 
-function updateOtherPlayer(data) {
-    if(!others[data.id]) {
-        others[data.id] = createMesh(0xff00ff);
-        scene.add(others[data.id]);
+function updateRemotePlayer(data) {
+    if(!otherPlayers[data.id]) {
+        // Nouveau joueur détecté : on lui donne une couleur différente (rose)
+        otherPlayers[data.id] = createPlayerMesh(0xff00ff);
+        scene.add(otherPlayers[data.id]);
     }
-    others[data.id].position.set(data.x, 0.5, data.z);
-    others[data.id].rotation.y = data.yaw;
+    
+    // Interpolation (lerp) pour un mouvement fluide
+    const target = otherPlayers[data.id];
+    target.position.x = THREE.MathUtils.lerp(target.position.x, data.x, 0.2);
+    target.position.z = THREE.MathUtils.lerp(target.position.z, data.z, 0.2);
+    target.rotation.y = data.yaw;
 }
-
-let lastSendTime = 0; // Ajoute cette variable en haut de ton script
 
 function loop() {
     requestAnimationFrame(loop);
     const now = Date.now();
     const dt = 0.016;
 
-    // ... (Ton code de mouvement reste le même) ...
+    // Déplacement Local
+    const move = new THREE.Vector3();
+    if(keys['KeyW']) move.add(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
+    if(keys['KeyS']) move.sub(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
+    if(keys['KeyA']) move.add(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
+    if(keys['KeyD']) move.sub(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
 
-    if(move.length() > 0 || Math.abs(lastYaw - yaw) > 0.01) {
-        playerGroup.position.addScaledVector(move.normalize(), 20 * dt);
-        
-        // --- LIMITEUR DE DÉBIT ICI ---
-        if (now - lastSendTime > 100) { // On envoie seulement toutes les 100ms
-            channel.publish('update', { 
-                id: myID, 
-                x: playerGroup.position.x, 
-                z: playerGroup.position.z, 
-                yaw: yaw 
-            });
-            lastSendTime = now;
-        }
+    if(move.length() > 0) {
+        playerGroup.position.addScaledVector(move.normalize(), 22 * dt);
     }
-    
-    // ... (Rendu caméra et scène) ...
+    playerGroup.rotation.y = yaw;
+
+    // --- ENVOI AU CLOUD (Throttling 100ms) ---
+    const moved = move.length() > 0;
+    const turned = Math.abs(lastYaw - yaw) > 0.01;
+
+    if((moved || turned) && (now - lastSendTime > 100)) {
+        channel.publish('update', { 
+            id: myID, 
+            x: playerGroup.position.x, 
+            z: playerGroup.position.z, 
+            yaw: yaw 
+        });
+        lastSendTime = now;
+        lastYaw = yaw;
+    }
+
+    // Caméra
+    camera.position.set(
+        playerGroup.position.x - Math.sin(yaw) * 15, 
+        8, 
+        playerGroup.position.z - Math.cos(yaw) * 15
+    );
+    camera.lookAt(playerGroup.position);
+
+    document.getElementById('playerCount').textContent = Object.keys(otherPlayers).length + 1;
+    renderer.render(scene, camera);
 }
 
 function setupControls() {
     window.addEventListener('keydown', e => keys[e.code] = true);
     window.addEventListener('keyup', e => keys[e.code] = false);
-    document.addEventListener('mousemove', e => { if(document.pointerLockElement) yaw -= e.movementX * 0.003; });
-    window.addEventListener('mousedown', () => renderer.domElement.requestPointerLock());
+    document.addEventListener('mousemove', e => {
+        if(document.pointerLockElement) yaw -= e.movementX * 0.003;
+    });
+    window.addEventListener('mousedown', () => {
+        if(!document.pointerLockElement) renderer.domElement.requestPointerLock();
+    });
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
 }
 </script>
 </body>
 </html>
+
 
 
 
