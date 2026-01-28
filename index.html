@@ -2,89 +2,86 @@
 <html lang="fr">
 <head>
     <meta charset="utf-8">
-    <title>Neon Strike - Arena Live</title>
+    <title>Neon Strike - Combat Final</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.155.0/three.min.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
-        html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: #fff; font-family: 'Courier New', Courier, monospace; }
+        html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: #fff; font-family: 'Courier New', monospace; }
         canvas { display: block; }
         #ui { position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.8); padding: 15px; border: 2px solid #00d4ff; border-radius: 10px; pointer-events: none; }
         #login { position: fixed; inset: 0; background: #000; display: flex; flex-direction: column; align-items: center; justify-content:center; z-index: 100; }
-        .box { background: #111; padding: 40px; border: 3px solid #00d4ff; border-radius: 20px; text-align: center; box-shadow: 0 0 30px #00d4ff55; }
-        button { padding: 15px 40px; cursor: pointer; font-weight: bold; background: #00d4ff; border: none; border-radius: 5px; font-size: 18px; color: #000; text-transform: uppercase; }
+        .box { background: #111; padding: 40px; border: 3px solid #00d4ff; border-radius: 20px; text-align: center; }
+        button { padding: 15px 40px; cursor: pointer; font-weight: bold; background: #00d4ff; border: none; border-radius: 5px; font-size: 18px; color: #000; }
         #crosshair { position: fixed; top: 50%; left: 50%; width: 14px; height: 14px; border: 2px solid #00ff00; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; }
-        #msgLog { color: #ff0055; font-weight: bold; text-shadow: 0 0 10px #ff0055; }
+        #msgLog { color: #ff0055; font-weight: bold; font-size: 20px; text-align: center; width: 100%; position: absolute; top: 20%; pointer-events: none; }
     </style>
 </head>
 <body>
 
 <div id="crosshair"></div>
+<div id="msgLog"></div>
 
 <div id="login">
     <div class="box">
-        <h1 style="color:#00d4ff; letter-spacing: 5px;">NEON STRIKE</h1>
-        <p style="margin-bottom: 30px;">SYSTEME CLOUD ACTIF</p>
-        <button onclick="connectToCloud()">INITIALISER CONNEXION</button>
+        <h1 style="color:#00d4ff;">NEON STRIKE</h1>
+        <button onclick="connectToCloud()">ENTRER DANS L'ARÈNE</button>
     </div>
 </div>
 
 <div id="ui">
-    <div style="color:#00d4ff">STATUS: ONLINE</div>
+    <div style="color:#00d4ff">SCORE: <span id="myScore">0</span></div>
     <div>ADVERSAIRES: <span id="playerCount">0</span></div>
-    <div id="msgLog"></div>
 </div>
 
 <script>
-// --- CONFIGURATION ---
 const ABLY_KEY = 'hoXqWQ.xS6MJA:4jw_S7dp30pIrB7Sm3tCM6S4WQa57PAqkPdp-WN-Ros'; 
 let ably, channel, myID;
 let scene, camera, renderer, playerGroup, yaw = 0;
 let otherPlayers = {}; 
 let bullets = [];
 let keys = {};
-let lastSendTime = 0;
-let lastYaw = 0;
-
-const BULLET_SPEED = 85;
+let lastSendTime = 0, lastYaw = 0, score = 0;
 
 async function connectToCloud() {
-    try {
-        ably = new Ably.Realtime(ABLY_KEY);
-        myID = "user-" + Math.random().toString(36).substr(2, 5);
-        channel = ably.channels.get('neon-arena');
+    ably = new Ably.Realtime(ABLY_KEY);
+    myID = "user-" + Math.random().toString(36).substr(2, 5);
+    channel = ably.channels.get('neon-arena-v2');
 
-        // Reception des données (Positions et Tirs)
-        channel.subscribe('point', (msg) => {
-            if (msg.data.owner === myID) return;
+    // 1. Gestion des messages réseau
+    channel.subscribe('point', (msg) => {
+        const d = msg.data;
+        if (d.owner === myID) return;
 
-            if (msg.data.type === 'move') {
-                updateRemotePlayer(msg.data);
-            } else if (msg.data.type === 'fire') {
-                createBulletMesh(msg.data);
-            }
-        });
+        if (d.type === 'move') {
+            updateRemotePlayer(d);
+        } else if (d.type === 'fire') {
+            createBulletMesh(d);
+        } else if (d.type === 'kill' && d.target === myID) {
+            respawn(); // Je suis mort
+        }
+    });
 
-        initGame();
-    } catch (err) {
-        alert("Erreur Ably : Vérifie ta connexion internet.");
-    }
+    // 2. Gestion de la présence (quand on quitte)
+    channel.presence.subscribe('leave', (member) => {
+        removePlayer(member.clientId || member.data?.id);
+    });
+    channel.presence.enter({id: myID});
+
+    initGame();
 }
 
 function initGame() {
     document.getElementById('login').style.display = 'none';
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x020008);
-    
     camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
 
-    // Environnement néon
     scene.add(new THREE.GridHelper(1000, 100, 0x00d4ff, 0x111111));
-    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+    scene.add(new THREE.AmbientLight(0xffffff, 0.8));
 
-    // Mon perso
     playerGroup = createPlayerMesh(0x00d4ff);
     scene.add(playerGroup);
 
@@ -95,56 +92,46 @@ function initGame() {
 function createPlayerMesh(color) {
     const group = new THREE.Group();
     const mat = new THREE.MeshStandardMaterial({ color: color, emissive: color, emissiveIntensity: 0.5 });
-    
     const body = new THREE.Mesh(new THREE.ConeGeometry(0.8, 1.8, 8), mat);
     body.position.y = 0.9;
-    
     const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), mat);
     head.position.y = 1.9;
-    
     group.add(body, head);
     return group;
 }
 
 function updateRemotePlayer(data) {
     if(!otherPlayers[data.owner]) {
-        otherPlayers[data.owner] = createPlayerMesh(0xff0055);
-        scene.add(otherPlayers[data.owner]);
+        otherPlayers[data.owner] = { mesh: createPlayerMesh(0xff0055), lastSeen: Date.now() };
+        scene.add(otherPlayers[data.owner].mesh);
     }
-    const target = otherPlayers[data.owner];
-    target.position.x = THREE.MathUtils.lerp(target.position.x, data.x, 0.3);
-    target.position.z = THREE.MathUtils.lerp(target.position.z, data.z, 0.3);
-    target.rotation.y = data.yaw;
+    const p = otherPlayers[data.owner];
+    p.mesh.position.x = THREE.MathUtils.lerp(p.mesh.position.x, data.x, 0.3);
+    p.mesh.position.z = THREE.MathUtils.lerp(p.mesh.position.z, data.z, 0.3);
+    p.mesh.rotation.y = data.yaw;
+    p.lastSeen = Date.now();
+}
+
+function removePlayer(id) {
+    if(otherPlayers[id]) {
+        scene.remove(otherPlayers[id].mesh);
+        delete otherPlayers[id];
+    }
 }
 
 function shoot() {
     const dir = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
-    const bulletData = {
-        type: 'fire',
-        owner: myID,
-        x: playerGroup.position.x, 
-        y: 1.6, 
-        z: playerGroup.position.z,
-        dx: dir.x, 
-        dz: dir.z
-    };
-
+    const bulletData = { type: 'fire', owner: myID, x: playerGroup.position.x, y: 1.6, z: playerGroup.position.z, dx: dir.x, dz: dir.z };
     channel.publish('point', bulletData);
     createBulletMesh(bulletData);
 }
 
 function createBulletMesh(data) {
     const mat = new THREE.MeshBasicMaterial({ color: data.owner === myID ? 0x00ff00 : 0xff0000 });
-    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.25, 8, 8), mat);
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8, 8), mat);
     mesh.position.set(data.x, data.y, data.z);
     scene.add(mesh);
-
-    bullets.push({
-        mesh: mesh,
-        dir: new THREE.Vector3(data.dx, 0, data.dz),
-        owner: data.owner,
-        deathTime: Date.now() + 1500
-    });
+    bullets.push({ mesh: mesh, dir: new THREE.Vector3(data.dx, 0, data.dz), owner: data.owner, death: Date.now() + 1200 });
 }
 
 function loop() {
@@ -152,44 +139,47 @@ function loop() {
     const now = Date.now();
     const dt = 0.016;
 
-    // Déplacement
+    // Déplacement local
     const move = new THREE.Vector3();
     if(keys['KeyW']) move.add(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
     if(keys['KeyS']) move.sub(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
     if(keys['KeyA']) move.add(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
     if(keys['KeyD']) move.sub(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
-
     if(move.length() > 0) playerGroup.position.addScaledVector(move.normalize(), 24 * dt);
     playerGroup.rotation.y = yaw;
 
-    // Envoi réseau (10 fois / sec)
+    // Synchro Cloud
     if((move.length() > 0 || Math.abs(lastYaw - yaw) > 0.01) && (now - lastSendTime > 100)) {
         channel.publish('point', { type: 'move', owner: myID, x: playerGroup.position.x, z: playerGroup.position.z, yaw: yaw });
-        lastSendTime = now;
-        lastYaw = yaw;
+        lastSendTime = now; lastYaw = yaw;
     }
 
-    // Balles
+    // Gestion Balles + Nettoyage joueurs inactifs
     for (let i = bullets.length - 1; i >= 0; i--) {
         const b = bullets[i];
-        b.mesh.position.addScaledVector(b.dir, BULLET_SPEED * dt);
+        b.mesh.position.addScaledVector(b.dir, 90 * dt);
 
-        if (b.owner !== myID && b.mesh.position.distanceTo(playerGroup.position) < 1.4) {
-            respawn();
-            scene.remove(b.mesh);
-            bullets.splice(i, 1);
-            continue;
+        // Test collision (Si MA balle touche un AUTRE)
+        if (b.owner === myID) {
+            for (let id in otherPlayers) {
+                if (b.mesh.position.distanceTo(otherPlayers[id].mesh.position) < 1.5) {
+                    channel.publish('point', { type: 'kill', owner: myID, target: id });
+                    score++;
+                    document.getElementById('myScore').textContent = score;
+                    scene.remove(b.mesh); bullets.splice(i, 1); break;
+                }
+            }
         }
+        if (bullets[i] && now > b.death) { scene.remove(b.mesh); bullets.splice(i, 1); }
+    }
 
-        if (now > b.deathTime) {
-            scene.remove(b.mesh);
-            bullets.splice(i, 1);
-        }
+    // Sécurité : Supprimer joueurs qui n'envoient plus rien (Anti-fantôme)
+    for (let id in otherPlayers) {
+        if (now - otherPlayers[id].lastSeen > 5000) removePlayer(id);
     }
 
     camera.position.set(playerGroup.position.x - Math.sin(yaw)*14, 7, playerGroup.position.z - Math.cos(yaw)*14);
     camera.lookAt(playerGroup.position);
-    
     document.getElementById('playerCount').textContent = Object.keys(otherPlayers).length;
     renderer.render(scene, camera);
 }
@@ -197,28 +187,17 @@ function loop() {
 function respawn() {
     playerGroup.position.set(Math.random()*60-30, 0, Math.random()*60-30);
     const log = document.getElementById('msgLog');
-    log.textContent = "CRITICAL HIT: RESPAWNING...";
-    setTimeout(() => log.textContent = "", 1500);
+    log.textContent = "VOUS ÊTES MORT !";
+    setTimeout(() => log.textContent = "", 2000);
 }
 
 function setupControls() {
     window.addEventListener('keydown', e => keys[e.code] = true);
     window.addEventListener('keyup', e => keys[e.code] = false);
-    document.addEventListener('mousemove', e => {
-        if(document.pointerLockElement) yaw -= e.movementX * 0.003;
-    });
-    window.addEventListener('mousedown', () => {
-        if(document.pointerLockElement) shoot();
-        else renderer.domElement.requestPointerLock();
-    });
-    window.addEventListener('resize', () => {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-    });
+    document.addEventListener('mousemove', e => { if(document.pointerLockElement) yaw -= e.movementX * 0.003; });
+    window.addEventListener('mousedown', () => { if(document.pointerLockElement) shoot(); else renderer.domElement.requestPointerLock(); });
 }
 </script>
 </body>
 </html>
-
 
