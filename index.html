@@ -33,7 +33,7 @@
     <div>ADVERSAIRES: <span id="playerCount">0</span></div>
 </div>
 
-<script>
+<script>// --- CONFIGURATION ---
 const ABLY_KEY = 'hoXqWQ.xS6MJA:4jw_S7dp30pIrB7Sm3tCM6S4WQa57PAqkPdp-WN-Ros'; 
 let ably, channel, myID;
 let scene, camera, renderer, playerGroup, yaw = 0;
@@ -42,32 +42,30 @@ let bullets = [];
 let keys = {};
 let lastSendTime = 0, lastYaw = 0, score = 0;
 
+const BULLET_SPEED = 70; // Légèrement réduit pour plus de précision
+
 async function connectToCloud() {
     myID = "user-" + Math.random().toString(36).substr(2, 5);
-    
     try {
-        // CORRECTION ICI : On passe le clientId à la connexion
         ably = new Ably.Realtime({ key: ABLY_KEY, clientId: myID });
-        channel = ably.channels.get('neon-arena-v3');
+        channel = ably.channels.get('neon-arena-final');
 
         channel.subscribe('point', (msg) => {
             const d = msg.data;
             if (d.owner === myID) return;
+
             if (d.type === 'move') updateRemotePlayer(d);
             else if (d.type === 'fire') createBulletMesh(d);
-            else if (d.type === 'kill' && d.target === myID) respawn();
+            else if (d.type === 'kill' && d.target === myID) {
+                console.log("INFO: Tu as été touché par " + d.owner);
+                respawn();
+            }
         });
 
-        // Gestion propre des départs
-        channel.presence.subscribe('leave', (member) => {
-            removePlayer(member.clientId);
-        });
-        await channel.presence.enter({id: myID});
-
+        channel.presence.subscribe('leave', (member) => removePlayer(member.clientId));
+        await channel.presence.enter();
         initGame();
-    } catch (err) {
-        console.error("Erreur de connexion :", err);
-    }
+    } catch (err) { console.error(err); }
 }
 
 function initGame() {
@@ -78,13 +76,11 @@ function initGame() {
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
-
     scene.add(new THREE.GridHelper(1000, 100, 0x00d4ff, 0x111111));
-    scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+    scene.add(new THREE.AmbientLight(0xffffff, 0.9));
 
     playerGroup = createPlayerMesh(0x00d4ff);
     scene.add(playerGroup);
-
     setupControls();
     loop();
 }
@@ -92,10 +88,10 @@ function initGame() {
 function createPlayerMesh(color) {
     const group = new THREE.Group();
     const mat = new THREE.MeshStandardMaterial({ color: color, emissive: color, emissiveIntensity: 0.5 });
-    const body = new THREE.Mesh(new THREE.ConeGeometry(0.8, 1.8, 8), mat);
-    body.position.y = 0.9;
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), mat);
-    head.position.y = 1.9;
+    const body = new THREE.Mesh(new THREE.ConeGeometry(1.0, 2.0, 8), mat); // Corps un peu plus gros
+    body.position.y = 1.0;
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 0.7), mat);
+    head.position.y = 2.1;
     group.add(body, head);
     return group;
 }
@@ -106,8 +102,7 @@ function updateRemotePlayer(data) {
         scene.add(otherPlayers[data.owner].mesh);
     }
     const p = otherPlayers[data.owner];
-    p.mesh.position.x = THREE.MathUtils.lerp(p.mesh.position.x, data.x, 0.3);
-    p.mesh.position.z = THREE.MathUtils.lerp(p.mesh.position.z, data.z, 0.3);
+    p.mesh.position.set(data.x, 0, data.z); // Position directe pour éviter le lag de l'interpolation pendant les tests
     p.mesh.rotation.y = data.yaw;
     p.lastSeen = Date.now();
 }
@@ -121,17 +116,25 @@ function removePlayer(id) {
 
 function shoot() {
     const dir = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
-    const bulletData = { type: 'fire', owner: myID, x: playerGroup.position.x, y: 1.6, z: playerGroup.position.z, dx: dir.x, dz: dir.z };
+    const bulletData = { 
+        type: 'fire', 
+        owner: myID, 
+        x: playerGroup.position.x, 
+        y: 1.6, 
+        z: playerGroup.position.z, 
+        dx: dir.x, 
+        dz: dir.z 
+    };
     channel.publish('point', bulletData);
     createBulletMesh(bulletData);
 }
 
 function createBulletMesh(data) {
     const mat = new THREE.MeshBasicMaterial({ color: data.owner === myID ? 0x00ff00 : 0xff0000 });
-    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8, 8), mat);
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.4, 8, 8), mat); // Balle plus grosse
     mesh.position.set(data.x, data.y, data.z);
     scene.add(mesh);
-    bullets.push({ mesh: mesh, dir: new THREE.Vector3(data.dx, 0, data.dz), owner: data.owner, death: Date.now() + 1200 });
+    bullets.push({ mesh: mesh, dir: new THREE.Vector3(data.dx, 0, data.dz), owner: data.owner, death: Date.now() + 1500 });
 }
 
 function loop() {
@@ -147,17 +150,21 @@ function loop() {
     if(move.length() > 0) playerGroup.position.addScaledVector(move.normalize(), 24 * dt);
     playerGroup.rotation.y = yaw;
 
-    if((move.length() > 0 || Math.abs(lastYaw - yaw) > 0.01) && (now - lastSendTime > 100)) {
+    if((move.length() > 0 || Math.abs(lastYaw - yaw) > 0.01) && (now - lastSendTime > 80)) {
         channel.publish('point', { type: 'move', owner: myID, x: playerGroup.position.x, z: playerGroup.position.z, yaw: yaw });
         lastSendTime = now; lastYaw = yaw;
     }
 
+    // --- DETECTION DE COLLISION AMÉLIORÉE ---
     for (let i = bullets.length - 1; i >= 0; i--) {
         const b = bullets[i];
-        b.mesh.position.addScaledVector(b.dir, 90 * dt);
+        b.mesh.position.addScaledVector(b.dir, BULLET_SPEED * dt);
+
         if (b.owner === myID) {
             for (let id in otherPlayers) {
-                if (b.mesh.position.distanceTo(otherPlayers[id].mesh.position) < 1.5) {
+                // Distance de collision augmentée à 2.2 pour être sûr
+                if (b.mesh.position.distanceTo(otherPlayers[id].mesh.position) < 2.2) {
+                    console.log("TOUCHE ! Envoi du signal de mort à " + id);
                     channel.publish('point', { type: 'kill', owner: myID, target: id });
                     score++;
                     document.getElementById('myScore').textContent = score;
@@ -168,10 +175,7 @@ function loop() {
         if (bullets[i] && now > b.death) { scene.remove(b.mesh); bullets.splice(i, 1); }
     }
 
-    // Nettoyage automatique des fantômes
-    for (let id in otherPlayers) {
-        if (now - otherPlayers[id].lastSeen > 4000) removePlayer(id);
-    }
+    for (let id in otherPlayers) { if (now - otherPlayers[id].lastSeen > 5000) removePlayer(id); }
 
     camera.position.set(playerGroup.position.x - Math.sin(yaw)*14, 7, playerGroup.position.z - Math.cos(yaw)*14);
     camera.lookAt(playerGroup.position);
@@ -180,9 +184,9 @@ function loop() {
 }
 
 function respawn() {
-    playerGroup.position.set(Math.random()*60-30, 0, Math.random()*60-30);
+    playerGroup.position.set(Math.random()*40-20, 0, Math.random()*40-20);
     const log = document.getElementById('msgLog');
-    log.textContent = "VOUS ÊTES MORT !";
+    log.textContent = "TU AS ÉTÉ ÉLIMINÉ !";
     setTimeout(() => log.textContent = "", 2000);
 }
 
@@ -192,11 +196,12 @@ function setupControls() {
     document.addEventListener('mousemove', e => { if(document.pointerLockElement) yaw -= e.movementX * 0.003; });
     window.addEventListener('mousedown', () => { 
         if(document.pointerLockElement) shoot(); 
-        else renderer.domElement.requestPointerLock().catch(()=>{}); // Correction SecurityError
+        else renderer.domElement.requestPointerLock().catch(()=>{});
     });
 }
 </script>
 </body>
 </html>
+
 
 
