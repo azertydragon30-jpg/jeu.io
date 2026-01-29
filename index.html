@@ -62,6 +62,12 @@ async function connectToCloud() {
         await channel.presence.enter();
         initGame();
     } catch (err) { console.error(err); }
+    
+    window.addEventListener('beforeunload', () => {
+    // On informe Ably qu'on quitte explicitement
+    channel.presence.leave();
+    ably.close(); 
+});
 }
 
 function initGame() {
