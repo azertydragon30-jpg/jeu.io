@@ -43,31 +43,31 @@ let keys = {};
 let lastSendTime = 0, lastYaw = 0, score = 0;
 
 async function connectToCloud() {
-    ably = new Ably.Realtime(ABLY_KEY);
     myID = "user-" + Math.random().toString(36).substr(2, 5);
-    channel = ably.channels.get('neon-arena-v2');
+    
+    try {
+        // CORRECTION ICI : On passe le clientId à la connexion
+        ably = new Ably.Realtime({ key: ABLY_KEY, clientId: myID });
+        channel = ably.channels.get('neon-arena-v3');
 
-    // 1. Gestion des messages réseau
-    channel.subscribe('point', (msg) => {
-        const d = msg.data;
-        if (d.owner === myID) return;
+        channel.subscribe('point', (msg) => {
+            const d = msg.data;
+            if (d.owner === myID) return;
+            if (d.type === 'move') updateRemotePlayer(d);
+            else if (d.type === 'fire') createBulletMesh(d);
+            else if (d.type === 'kill' && d.target === myID) respawn();
+        });
 
-        if (d.type === 'move') {
-            updateRemotePlayer(d);
-        } else if (d.type === 'fire') {
-            createBulletMesh(d);
-        } else if (d.type === 'kill' && d.target === myID) {
-            respawn(); // Je suis mort
-        }
-    });
+        // Gestion propre des départs
+        channel.presence.subscribe('leave', (member) => {
+            removePlayer(member.clientId);
+        });
+        await channel.presence.enter({id: myID});
 
-    // 2. Gestion de la présence (quand on quitte)
-    channel.presence.subscribe('leave', (member) => {
-        removePlayer(member.clientId || member.data?.id);
-    });
-    channel.presence.enter({id: myID});
-
-    initGame();
+        initGame();
+    } catch (err) {
+        console.error("Erreur de connexion :", err);
+    }
 }
 
 function initGame() {
@@ -139,7 +139,6 @@ function loop() {
     const now = Date.now();
     const dt = 0.016;
 
-    // Déplacement local
     const move = new THREE.Vector3();
     if(keys['KeyW']) move.add(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
     if(keys['KeyS']) move.sub(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
@@ -148,18 +147,14 @@ function loop() {
     if(move.length() > 0) playerGroup.position.addScaledVector(move.normalize(), 24 * dt);
     playerGroup.rotation.y = yaw;
 
-    // Synchro Cloud
     if((move.length() > 0 || Math.abs(lastYaw - yaw) > 0.01) && (now - lastSendTime > 100)) {
         channel.publish('point', { type: 'move', owner: myID, x: playerGroup.position.x, z: playerGroup.position.z, yaw: yaw });
         lastSendTime = now; lastYaw = yaw;
     }
 
-    // Gestion Balles + Nettoyage joueurs inactifs
     for (let i = bullets.length - 1; i >= 0; i--) {
         const b = bullets[i];
         b.mesh.position.addScaledVector(b.dir, 90 * dt);
-
-        // Test collision (Si MA balle touche un AUTRE)
         if (b.owner === myID) {
             for (let id in otherPlayers) {
                 if (b.mesh.position.distanceTo(otherPlayers[id].mesh.position) < 1.5) {
@@ -173,9 +168,9 @@ function loop() {
         if (bullets[i] && now > b.death) { scene.remove(b.mesh); bullets.splice(i, 1); }
     }
 
-    // Sécurité : Supprimer joueurs qui n'envoient plus rien (Anti-fantôme)
+    // Nettoyage automatique des fantômes
     for (let id in otherPlayers) {
-        if (now - otherPlayers[id].lastSeen > 5000) removePlayer(id);
+        if (now - otherPlayers[id].lastSeen > 4000) removePlayer(id);
     }
 
     camera.position.set(playerGroup.position.x - Math.sin(yaw)*14, 7, playerGroup.position.z - Math.cos(yaw)*14);
@@ -195,9 +190,13 @@ function setupControls() {
     window.addEventListener('keydown', e => keys[e.code] = true);
     window.addEventListener('keyup', e => keys[e.code] = false);
     document.addEventListener('mousemove', e => { if(document.pointerLockElement) yaw -= e.movementX * 0.003; });
-    window.addEventListener('mousedown', () => { if(document.pointerLockElement) shoot(); else renderer.domElement.requestPointerLock(); });
+    window.addEventListener('mousedown', () => { 
+        if(document.pointerLockElement) shoot(); 
+        else renderer.domElement.requestPointerLock().catch(()=>{}); // Correction SecurityError
+    });
 }
 </script>
 </body>
 </html>
+
 
