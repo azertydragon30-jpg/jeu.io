@@ -2,45 +2,75 @@
 <html lang="fr">
 <head>
     <meta charset="utf-8">
-   <title>Neon Strike | Jeu de Tir Multijoueur Online</title>
-<meta name="description" content="Affronte tes amis dans Neon Strike, le jeu de tir frénétique par navigateur. Pas d'installation, joue directement en ligne dans l'arène néon !">
+    <title>Neon Strike - Ghost Ops | Jeu de Tir Multijoueur</title>
+    
+    <meta name="description" content="Affronte tes amis dans Neon Strike: Ghost Ops. Un FPS multijoueur dans une arène néon géante avec mini-map, arsenal varié et invisibilité. Joue gratuitement en ligne !">
+    <meta name="keywords" content="jeu en ligne, multijoueur, browser game, shooter, fps, three.js, néon, io game, gratuit">
+    <meta property="og:title" content="Neon Strike - Ghost Ops">
+    <meta property="og:description" content="Rejoins l'arène géante. Utilise le radar, change d'arme et deviens invisible pour surprendre tes ennemis.">
+
+    <meta name="google-site-verification" content="COLLE_TON_CODE_ALPHANUMERIQUE_ICI" />
+    
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎯</text></svg>">
+    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
+    
     <style>
         html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: #fff; font-family: 'Courier New', monospace; }
-        canvas { display: block; }
+        /* UI Principal (en haut à gauche) */
         #ui { position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.8); padding: 15px; border: 2px solid #00d4ff; border-radius: 10px; pointer-events: none; z-index: 10; }
+        
+        /* NOUVEAU : Style de la Mini-Map (Ronde en haut à droite) */
+        #minimap-container { position: absolute; top: 20px; right: 20px; width: 150px; height: 150px; background: rgba(0,20,30,0.9); border: 2px solid #00d4ff; border-radius: 100%; overflow: hidden; z-index: 10; box-shadow: 0 0 15px rgba(0, 212, 255, 0.3); }
+        #minimap { width: 100%; height: 100%; }
+
+        /* NOUVEAU : Interface des Armes et de l'Invisibilité */
+        #weapon-ui { margin-top: 10px; font-size: 14px; color: #ffeb3b; }
+        #invis-ui { margin-top: 5px; font-size: 12px; color: #888; transition: color 0.3s; }
+        .active-w { color: #00ff00; font-weight: bold; text-shadow: 0 0 5px #00ff00; }
+        
+        /* Barre de vie */
         #health-container { width: 200px; height: 15px; background: #333; border: 1px solid #fff; margin-top: 10px; }
         #health-bar { width: 100%; height: 100%; background: #ff0055; transition: width 0.3s; }
+        
+        /* Écran de connexion */
         #login { position: fixed; inset: 0; background: #000; display: flex; flex-direction: column; align-items: center; justify-content:center; z-index: 100; }
-        .box { background: #111; padding: 40px; border: 3px solid #00d4ff; border-radius: 20px; text-align: center; }
-        button { padding: 15px 40px; cursor: pointer; font-weight: bold; background: #00d4ff; border: none; border-radius: 5px; font-size: 18px; color: #000; text-transform: uppercase; }
-        #msgLog { color: #ff0055; font-weight: bold; font-size: 24px; text-align: center; width: 100%; position: absolute; top: 15%; pointer-events: none; z-index: 50; }
+        .box { background: #111; padding: 40px; border: 3px solid #00d4ff; border-radius: 20px; text-align: center; box-shadow: 0 0 30px rgba(0, 212, 255, 0.2); }
+        button { padding: 15px 40px; cursor: pointer; font-weight: bold; background: #00d4ff; border: none; border-radius: 5px; font-size: 18px; color: #000; text-transform: uppercase; transition: background 0.3s; }
+        button:hover { background: #fff; }
+        
+        /* Messages au centre de l'écran (Respawn...) */
+        #msgLog { color: #ff0055; font-weight: bold; font-size: 24px; text-align: center; width: 100%; position: absolute; top: 15%; pointer-events: none; z-index: 50; text-shadow: 0 0 10px #ff0055; }
     </style>
-    <meta name="description" content="Neon Strike : un jeu de tir multijoueur frénétique dans une arène néon. Affrontez vos amis en ligne gratuitement !">
-<meta name="keywords" content="jeu en ligne, multijoueur, browser game, shooter, néon, three.js">
-<meta property="og:title" content="Neon Strike - Arène de Combat Online">
-<meta property="og:description" content="Rejoins l'arène et deviens le champion du néon.">
-<meta name="google-site-verification" content="1jk5iL5mJ3ySz3eU4zRGVjjcUTF2W31MSwGfpRCq3Zs" />
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔫</text></svg>">
 </head>
 <body>
 
 <div id="msgLog"></div>
 
+<div id="minimap-container">
+    <canvas id="minimap" width="150" height="150"></canvas>
+</div>
+
 <div id="login">
     <div class="box">
-        <h1 style="color:#00d4ff; letter-spacing: 5px;">NEON STRIKE</h1>
-        <p id="keyStatus" style="color: #555; font-size: 12px;">En attente d'initialisation...</p>
-        <button onclick="connectToCloud()">ENTRER DANS L'ARÈNE</button>
+        <h1 style="color:#00d4ff; letter-spacing: 5px;">GHOST OPS</h1>
+        <p id="keyStatus" style="color: #555; font-size: 12px;">Système en attente...</p>
+        <button onclick="connectToCloud()">DÉPLOIEMENT</button>
     </div>
 </div>
 
 <div id="ui">
     <div style="color:#00d4ff">SCORE: <span id="myScore">0</span></div>
     <div>JOUEURS: <span id="playerCount">0</span></div>
-    <div>CLÉ: <span id="activeKey">1</span></div>
     <div id="health-container"><div id="health-bar"></div></div>
+    
+    <div id="weapon-ui">
+        <span id="w1" class="active-w">[1] BLASTER</span> | 
+        <span id="w2">[2] SNIPER</span> | 
+        <span id="w3">[3] SHOTGUN</span>
+    </div>
+    <div id="invis-ui">[E] FANTÔME : PRÊT</div>
 </div>
 
 <script>
@@ -50,48 +80,62 @@ const KEYS = [
     'VxkiKg.ll3U8g:y10rnnVr2hatHn4iYPs6FGt_Ei3V1WkmoJoZIyEcwCo'
 ];
 let currentKeyIndex = 0;
+
+// ARSENAL
+const WEAPONS = {
+    1: { name: 'BLASTER', delay: 200, speed: 90, dmg: 20, color: 0x00ff00, spread: 0, count: 1 },
+    2: { name: 'SNIPER', delay: 1500, speed: 250, dmg: 80, color: 0xffff00, spread: 0, count: 1 },
+    3: { name: 'SHOTGUN', delay: 1000, speed: 70, dmg: 15, color: 0xff0000, spread: 0.2, count: 4 }
+};
+
 let ably, channel, myID;
 let scene, camera, renderer, playerGroup, yaw = 0;
 let otherPlayers = {}; 
 let bullets = [], walls = [], keys = {};
 let lastSendTime = 0, score = 0, hp = 100;
 
+// ETAT DU JOUEUR
+let currentWeapon = 1;
+let lastShootTime = 0;
+let isInvisible = false;
+let lastInvisTime = 0;
+let invisDuration = 5000;
+let invisCooldown = 15000;
+
+// MINI MAP
+const mapCanvas = document.getElementById('minimap');
+const mapCtx = mapCanvas.getContext('2d');
+const MAP_SCALE = 0.3; // Zoom du radar
+
 async function connectToCloud() {
     myID = "u-" + Math.random().toString(36).substr(2, 4);
     const statusEl = document.getElementById('keyStatus');
-    if(statusEl) statusEl.textContent = "Connexion sur Clé #" + (currentKeyIndex + 1) + "...";
+    if(statusEl) statusEl.textContent = "Connexion Clé #" + (currentKeyIndex + 1) + "...";
     
     try {
         ably = new Ably.Realtime({ key: KEYS[currentKeyIndex], clientId: myID });
-        
         ably.connection.on('failed', () => switchToNextKey());
         
-        channel = ably.channels.get('neon-arena-v6');
+        channel = ably.channels.get('neon-ops-v1');
 
         channel.subscribe('p', (msg) => {
             const d = msg.data;
             if (d.o === myID) return;
             if (d.t === 'm') updateRemotePlayer(d);
             else if (d.t === 'f') createBulletMesh(d);
-            else if (d.t === 'h' && d.tgt === myID) takeDamage(34);
+            else if (d.t === 'h' && d.tgt === myID) takeDamage(d.dmg);
         });
 
         channel.presence.subscribe('leave', (m) => removePlayer(m.clientId));
         await channel.presence.enter();
 
-        const keyEl = document.getElementById('activeKey');
-        if(keyEl) keyEl.textContent = (currentKeyIndex + 1);
-        
         initGame();
         
         window.addEventListener('beforeunload', () => {
             if(channel) channel.presence.leave();
             if(ably) ably.close();
         });
-    } catch (err) { 
-        console.error(err);
-        switchToNextKey(); 
-    }
+    } catch (err) { switchToNextKey(); }
 }
 
 function switchToNextKey() {
@@ -100,38 +144,39 @@ function switchToNextKey() {
         if(ably) ably.close();
         connectToCloud();
     } else {
-        alert("Quota épuisé sur toutes les clés Ably.");
+        alert("Quota épuisé sur toutes les clés.");
     }
 }
 
 function initGame() {
-    const loginScreen = document.getElementById('login');
-    if(loginScreen) loginScreen.style.display = 'none';
+    document.getElementById('login').style.display = 'none';
     if(scene) return;
 
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x020008);
+    // Brouillard pour l'ambiance et cacher le bout de la map géante
+    scene.fog = new THREE.FogExp2(0x020008, 0.015);
+
     camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
 
-    scene.add(new THREE.GridHelper(500, 100, 0x00d4ff, 0x111111));
-    scene.add(new THREE.AmbientLight(0xffffff, 1.0));
+    // SOL GÉANT (400x400)
+    scene.add(new THREE.GridHelper(400, 100, 0x00d4ff, 0x111111));
+    scene.add(new THREE.AmbientLight(0xffffff, 0.8));
 
-    // MURS DE BORDURE
-    createWall(0, 100, 200, 2);
-    createWall(0, -100, 200, 2);
-    createWall(100, 0, 2, 200);
-    createWall(-100, 0, 2, 200);
+    // BORDURES
+    createWall(0, 200, 400, 4); createWall(0, -200, 400, 4);
+    createWall(200, 0, 4, 400); createWall(-200, 0, 4, 400);
 
-    // MURS INTERIEURS (Labyrinthe)
-    for(let i = 0; i < 30; i++) {
-        let x = Math.random() * 160 - 80;
-        let z = Math.random() * 160 - 80;
-        if(Math.abs(x) > 15 || Math.abs(z) > 15) {
+    // LABYRINTHE ÉTENDU
+    for(let i = 0; i < 60; i++) {
+        let x = Math.random() * 360 - 180;
+        let z = Math.random() * 360 - 180;
+        if(Math.abs(x) > 20 || Math.abs(z) > 20) { // Zone de spawn libre
             let isWide = Math.random() > 0.5;
-            createWall(x, z, isWide ? 20 : 2, isWide ? 2 : 20);
+            createWall(x, z, isWide ? 25 : 3, isWide ? 3 : 25);
         }
     }
 
@@ -142,16 +187,23 @@ function initGame() {
 }
 
 function createWall(x, z, w, d) {
-    const geo = new THREE.BoxGeometry(w, 7, d);
+    const geo = new THREE.BoxGeometry(w, 8, d);
     const wall = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x00d4ff, emissive: 0x00d4ff, emissiveIntensity: 0.2 }));
-    wall.position.set(x, 3.5, z);
+    wall.position.set(x, 4, z);
     scene.add(wall);
-    walls.push({ minX: x - w/2 - 0.9, maxX: x + w/2 + 0.9, minZ: z - d/2 - 0.9, maxZ: z + d/2 + 0.9 });
+    walls.push({ minX: x - w/2 - 1, maxX: x + w/2 + 1, minZ: z - d/2 - 1, maxZ: z + d/2 + 1 });
 }
 
 function createPlayerMesh(color) {
     const g = new THREE.Group();
-    const mat = new THREE.MeshStandardMaterial({ color: color, emissive: color, emissiveIntensity: 0.5 });
+    // Material transparent pour l'invisibilité
+    const mat = new THREE.MeshStandardMaterial({ 
+        color: color, 
+        emissive: color, 
+        emissiveIntensity: 0.5,
+        transparent: true,
+        opacity: 1.0
+    });
     const body = new THREE.Mesh(new THREE.ConeGeometry(0.8, 2, 8), mat);
     body.position.y = 1;
     const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), mat);
@@ -162,13 +214,17 @@ function createPlayerMesh(color) {
 
 function updateRemotePlayer(d) {
     if(!otherPlayers[d.o]) {
-        otherPlayers[d.o] = { mesh: createPlayerMesh(0xff0055), lastSeen: Date.now() };
+        otherPlayers[d.o] = { mesh: createPlayerMesh(0xff0055), invisible: false };
         scene.add(otherPlayers[d.o].mesh);
     }
     const p = otherPlayers[d.o];
     p.mesh.position.set(d.x, 0, d.z);
     p.mesh.rotation.y = d.y;
-    p.lastSeen = Date.now();
+    
+    // Gérer l'invisibilité visuelle
+    p.invisible = d.i; // d.i = is invisible
+    const opacity = d.i ? 0.05 : 1.0; // Presque invisible mais légère distorsion
+    p.mesh.children.forEach(c => c.material.opacity = opacity);
 }
 
 function removePlayer(id) {
@@ -184,35 +240,31 @@ function takeDamage(amt) {
 
 function respawn() {
     hp = 100;
-    const bar = document.getElementById('health-bar');
-    if(bar) bar.style.width = "100%";
-
-    // On cherche une position libre (pas dans un mur)
-    let safeX, safeZ;
-    let attempts = 0;
+    document.getElementById('health-bar').style.width = "100%";
     
+    let safeX, safeZ;
     do {
-        // On choisit une position entre -90 et 90 (l'arène fait -100 à 100)
-        safeX = Math.random() * 180 - 90;
-        safeZ = Math.random() * 180 - 90;
-        attempts++;
-    } while (checkWall(safeX, safeZ) && attempts < 10); // On recommence si c'est un mur
+        safeX = Math.random() * 300 - 150;
+        safeZ = Math.random() * 300 - 150;
+    } while (checkWall(safeX, safeZ));
 
     playerGroup.position.set(safeX, 0, safeZ);
+    playerGroup.children.forEach(c => c.material.opacity = 1.0);
+    isInvisible = false;
     
     const log = document.getElementById('msgLog');
-    if(log) {
-        log.textContent = "REPLOIEMENT TACTIQUE...";
-        setTimeout(() => log.textContent = "", 2000);
-    }
+    log.textContent = "RESPAWN...";
+    setTimeout(() => log.textContent = "", 2000);
 }
 
+// --- GAME LOOP ---
 function loop() {
     requestAnimationFrame(loop);
     if(!scene) return;
     const now = Date.now();
     const dt = 0.016;
 
+    // 1. Déplacement
     const move = new THREE.Vector3();
     if(keys['KeyW']) move.add(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
     if(keys['KeyS']) move.sub(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
@@ -220,25 +272,57 @@ function loop() {
     if(keys['KeyD']) move.sub(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
 
     if(move.length() > 0) {
-        const step = move.normalize().multiplyScalar(30 * dt);
+        const step = move.normalize().multiplyScalar(30 * dt); // Vitesse normale
         if(!checkWall(playerGroup.position.x + step.x, playerGroup.position.z)) playerGroup.position.x += step.x;
         if(!checkWall(playerGroup.position.x, playerGroup.position.z + step.z)) playerGroup.position.z += step.z;
     }
     playerGroup.rotation.y = yaw;
 
-    if(now - lastSendTime > 120) {
-        channel.publish('p', { t: 'm', o: myID, x: playerGroup.position.x, z: playerGroup.position.z, y: yaw });
+    // 2. Gestion Armes
+    if(keys['Digit1']) switchWeapon(1);
+    if(keys['Digit2']) switchWeapon(2);
+    if(keys['Digit3']) switchWeapon(3);
+
+    // 3. Gestion Invisibilité
+    if(keys['KeyE']) {
+        if(now - lastInvisTime > invisCooldown) {
+            isInvisible = true;
+            lastInvisTime = now;
+            // Effet visuel sur soi
+            playerGroup.children.forEach(c => c.material.opacity = 0.3);
+            setTimeout(() => {
+                isInvisible = false;
+                playerGroup.children.forEach(c => c.material.opacity = 1.0);
+            }, invisDuration);
+        }
+    }
+    // Update UI Invisibilité
+    const timeLeft = Math.max(0, invisCooldown - (now - lastInvisTime));
+    document.getElementById('invis-ui').textContent = timeLeft === 0 ? "[E] FANTÔME : PRÊT" : `RECHARGE : ${(timeLeft/1000).toFixed(1)}s`;
+    document.getElementById('invis-ui').style.color = isInvisible ? "#00ff00" : (timeLeft === 0 ? "#888" : "#ff0000");
+
+    // 4. Réseau (Envoi Position + Etat Invisibilité)
+    if(now - lastSendTime > 100) {
+        channel.publish('p', { 
+            t: 'm', o: myID, 
+            x: playerGroup.position.x, 
+            z: playerGroup.position.z, 
+            y: yaw,
+            i: isInvisible // On dit aux autres si on est invisible
+        });
         lastSendTime = now;
     }
 
+    // 5. Balles
     for (let i = bullets.length - 1; i >= 0; i--) {
         const b = bullets[i];
-        b.mesh.position.addScaledVector(b.dir, 90 * dt);
+        b.mesh.position.addScaledVector(b.dir, b.speed * dt);
         if(checkWall(b.mesh.position.x, b.mesh.position.z)) { scene.remove(b.mesh); bullets.splice(i, 1); continue; }
+        
         if (b.o === myID) {
             for (let id in otherPlayers) {
-                if (b.mesh.position.distanceTo(otherPlayers[id].mesh.position) < 2.2) {
-                    channel.publish('p', { t: 'h', o: myID, tgt: id });
+                if (b.mesh.position.distanceTo(otherPlayers[id].mesh.position) < 2.5) {
+                    channel.publish('p', { t: 'h', o: myID, tgt: id, dmg: b.dmg });
                     scene.remove(b.mesh); bullets.splice(i, 1); break;
                 }
             }
@@ -246,14 +330,61 @@ function loop() {
         if (bullets[i] && now > b.death) { scene.remove(b.mesh); bullets.splice(i, 1); }
     }
 
-    camera.position.set(playerGroup.position.x - Math.sin(yaw)*16, 9, playerGroup.position.z - Math.cos(yaw)*16);
+    // 6. Camera & UI
+    camera.position.set(playerGroup.position.x - Math.sin(yaw)*16, 10, playerGroup.position.z - Math.cos(yaw)*16);
     camera.lookAt(playerGroup.position);
-    
-    // SECURITE : Vérifier si l'élément existe avant d'écrire
-    const pCountEl = document.getElementById('playerCount');
-    if(pCountEl) pCountEl.textContent = Object.keys(otherPlayers).length;
+    document.getElementById('playerCount').textContent = Object.keys(otherPlayers).length;
     
     renderer.render(scene, camera);
+    updateMiniMap();
+}
+
+function updateMiniMap() {
+    // Effacer le canvas
+    mapCtx.fillStyle = '#00141e';
+    mapCtx.fillRect(0, 0, 150, 150);
+    
+    // Centre du radar (c'est nous)
+    const cx = 75;
+    const cy = 75;
+
+    // Dessiner les ennemis
+    for(let id in otherPlayers) {
+        const p = otherPlayers[id];
+        // SI LE JOUEUR EST INVISIBLE, ON NE LE DESSINE PAS !
+        if(p.invisible) continue; 
+
+        // Calcul position relative
+        const relX = (p.mesh.position.x - playerGroup.position.x) * MAP_SCALE;
+        const relZ = (p.mesh.position.z - playerGroup.position.z) * MAP_SCALE;
+
+        // Rotation du point en fonction de notre orientation (pour que "haut" soit toujours devant nous)
+        const rotX = relX * Math.cos(yaw) - relZ * Math.sin(yaw);
+        const rotY = relX * Math.sin(yaw) + relZ * Math.cos(yaw);
+
+        // Dessiner le point rouge
+        if(Math.abs(rotX) < 70 && Math.abs(rotY) < 70) {
+            mapCtx.fillStyle = '#ff0055';
+            mapCtx.beginPath();
+            mapCtx.arc(cx - rotX, cy + rotY, 3, 0, Math.PI*2);
+            mapCtx.fill();
+        }
+    }
+
+    // Dessiner le joueur (point vert au centre)
+    mapCtx.fillStyle = '#00ff00';
+    mapCtx.beginPath();
+    mapCtx.arc(cx, cy, 4, 0, Math.PI*2);
+    mapCtx.fill();
+    
+    // Cône de vision
+    mapCtx.strokeStyle = 'rgba(0, 255, 0, 0.3)';
+    mapCtx.beginPath();
+    mapCtx.moveTo(cx, cy);
+    mapCtx.lineTo(cx - 10, cy - 20);
+    mapCtx.lineTo(cx + 10, cy - 20);
+    mapCtx.closePath();
+    mapCtx.stroke();
 }
 
 function checkWall(x, z) {
@@ -261,17 +392,50 @@ function checkWall(x, z) {
     return false;
 }
 
+function switchWeapon(id) {
+    currentWeapon = id;
+    document.querySelectorAll('#weapon-ui span').forEach(el => el.className = '');
+    document.getElementById('w'+id).className = 'active-w';
+}
+
 function shoot() {
-    const d = { t: 'f', o: myID, x: playerGroup.position.x, y: 1.8, z: playerGroup.position.z, dx: Math.sin(yaw), dz: Math.cos(yaw) };
-    channel.publish('p', d);
-    createBulletMesh(d);
+    const now = Date.now();
+    const w = WEAPONS[currentWeapon];
+    
+    if(now - lastShootTime < w.delay) return;
+    if(isInvisible) return; // Impossible de tirer en invisible (sinon c'est trop facile)
+
+    lastShootTime = now;
+    
+    // Shotgun tire plusieurs balles, les autres 1 seule
+    for(let i=0; i<w.count; i++) {
+        // Petit décalage angulaire pour le shotgun
+        const angleOffset = (Math.random() - 0.5) * w.spread; 
+        const finalYaw = yaw + angleOffset;
+
+        const d = { 
+            t: 'f', o: myID, 
+            x: playerGroup.position.x, y: 1.8, z: playerGroup.position.z, 
+            dx: Math.sin(finalYaw), dz: Math.cos(finalYaw),
+            spd: w.speed, color: w.color, dmg: w.dmg
+        };
+        channel.publish('p', d);
+        createBulletMesh(d);
+    }
 }
 
 function createBulletMesh(d) {
-    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.4, 8, 8), new THREE.MeshBasicMaterial({ color: d.o === myID ? 0x00ff00 : 0xff0000 }));
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8, 8), new THREE.MeshBasicMaterial({ color: d.color || 0xffff00 }));
     mesh.position.set(d.x, d.y, d.z);
     scene.add(mesh);
-    bullets.push({ mesh: mesh, dir: new THREE.Vector3(d.dx, 0, d.dz), o: d.o, death: Date.now() + 2000 });
+    bullets.push({ 
+        mesh: mesh, 
+        dir: new THREE.Vector3(d.dx, 0, d.dz), 
+        o: d.o, 
+        speed: d.spd || 90, 
+        dmg: d.dmg || 20,
+        death: Date.now() + 2000 
+    });
 }
 
 function setupControls() {
@@ -286,12 +450,3 @@ function setupControls() {
 </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
