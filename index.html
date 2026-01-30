@@ -179,10 +179,23 @@ function respawn() {
     hp = 100;
     const bar = document.getElementById('health-bar');
     if(bar) bar.style.width = "100%";
-    playerGroup.position.set(Math.random()*10-5, 0, Math.random()*10-5);
+
+    // On cherche une position libre (pas dans un mur)
+    let safeX, safeZ;
+    let attempts = 0;
+    
+    do {
+        // On choisit une position entre -90 et 90 (l'arène fait -100 à 100)
+        safeX = Math.random() * 180 - 90;
+        safeZ = Math.random() * 180 - 90;
+        attempts++;
+    } while (checkWall(safeX, safeZ) && attempts < 10); // On recommence si c'est un mur
+
+    playerGroup.position.set(safeX, 0, safeZ);
+    
     const log = document.getElementById('msgLog');
     if(log) {
-        log.textContent = "SYSTEM REBOOT...";
+        log.textContent = "REPLOIEMENT TACTIQUE...";
         setTimeout(() => log.textContent = "", 2000);
     }
 }
@@ -266,6 +279,7 @@ function setupControls() {
 </script>
 </body>
 </html>
+
 
 
 
