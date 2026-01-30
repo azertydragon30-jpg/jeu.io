@@ -2,46 +2,47 @@
 <html lang="fr">
 <head>
     <meta charset="utf-8">
-    <title>Neon Strike - Multi-Key Edition</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.155.0/three.min.js"></script>
+    <title>Neon Strike - Grand Arena</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
         html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: #fff; font-family: 'Courier New', monospace; }
         canvas { display: block; }
-        #ui { position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.8); padding: 15px; border: 2px solid #00d4ff; border-radius: 10px; pointer-events: none; }
+        #ui { position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.8); padding: 15px; border: 2px solid #00d4ff; border-radius: 10px; pointer-events: none; z-index: 10; }
         #health-container { width: 200px; height: 15px; background: #333; border: 1px solid #fff; margin-top: 10px; }
         #health-bar { width: 100%; height: 100%; background: #ff0055; transition: width 0.3s; }
         #login { position: fixed; inset: 0; background: #000; display: flex; flex-direction: column; align-items: center; justify-content:center; z-index: 100; }
         .box { background: #111; padding: 40px; border: 3px solid #00d4ff; border-radius: 20px; text-align: center; }
-        button { padding: 15px 40px; cursor: pointer; font-weight: bold; background: #00d4ff; border: none; border-radius: 5px; font-size: 18px; color: #000; }
-        #msgLog { color: #ff0055; font-weight: bold; font-size: 24px; text-align: center; width: 100%; position: absolute; top: 15%; pointer-events: none; }
+        button { padding: 15px 40px; cursor: pointer; font-weight: bold; background: #00d4ff; border: none; border-radius: 5px; font-size: 18px; color: #000; text-transform: uppercase; }
+        #msgLog { color: #ff0055; font-weight: bold; font-size: 24px; text-align: center; width: 100%; position: absolute; top: 15%; pointer-events: none; z-index: 50; }
     </style>
 </head>
 <body>
 
 <div id="msgLog"></div>
+
 <div id="login">
     <div class="box">
-        <h1 style="color:#00d4ff;">NEON STRIKE</h1>
-        <p id="keyStatus" style="font-size: 10px; color: #555;">Initialisation des clés...</p>
-        <button onclick="connectToCloud()">LANCER LE JEU</button>
+        <h1 style="color:#00d4ff; letter-spacing: 5px;">NEON STRIKE</h1>
+        <p id="keyStatus" style="color: #555; font-size: 12px;">En attente d'initialisation...</p>
+        <button onclick="connectToCloud()">ENTRER DANS L'ARÈNE</button>
     </div>
 </div>
 
 <div id="ui">
     <div style="color:#00d4ff">SCORE: <span id="myScore">0</span></div>
-    <div>CLÉ ACTIVE: <span id="activeKey">1</span></div>
+    <div>JOUEURS: <span id="playerCount">0</span></div>
+    <div>CLÉ: <span id="activeKey">1</span></div>
     <div id="health-container"><div id="health-bar"></div></div>
 </div>
 
 <script>
-// --- CONFIGURATION MULTI-CLÉS ---
+// --- CONFIGURATION ---
 const KEYS = [
     'hoXqWQ.xS6MJA:4jw_S7dp30pIrB7Sm3tCM6S4WQa57PAqkPdp-WN-Ros',
     'VxkiKg.ll3U8g:y10rnnVr2hatHn4iYPs6FGt_Ei3V1WkmoJoZIyEcwCo'
 ];
 let currentKeyIndex = 0;
-
 let ably, channel, myID;
 let scene, camera, renderer, playerGroup, yaw = 0;
 let otherPlayers = {}; 
@@ -50,13 +51,15 @@ let lastSendTime = 0, score = 0, hp = 100;
 
 async function connectToCloud() {
     myID = "u-" + Math.random().toString(36).substr(2, 4);
-    document.getElementById('keyStatus').textContent = "Connexion Clé #" + (currentKeyIndex + 1) + "...";
+    const statusEl = document.getElementById('keyStatus');
+    if(statusEl) statusEl.textContent = "Connexion sur Clé #" + (currentKeyIndex + 1) + "...";
     
     try {
         ably = new Ably.Realtime({ key: KEYS[currentKeyIndex], clientId: myID });
+        
         ably.connection.on('failed', () => switchToNextKey());
         
-        channel = ably.channels.get('neon-arena-large');
+        channel = ably.channels.get('neon-arena-v6');
 
         channel.subscribe('p', (msg) => {
             const d = msg.data;
@@ -69,14 +72,19 @@ async function connectToCloud() {
         channel.presence.subscribe('leave', (m) => removePlayer(m.clientId));
         await channel.presence.enter();
 
-        document.getElementById('activeKey').textContent = (currentKeyIndex + 1);
+        const keyEl = document.getElementById('activeKey');
+        if(keyEl) keyEl.textContent = (currentKeyIndex + 1);
+        
         initGame();
         
         window.addEventListener('beforeunload', () => {
-            channel.presence.leave();
-            ably.close();
+            if(channel) channel.presence.leave();
+            if(ably) ably.close();
         });
-    } catch (err) { switchToNextKey(); }
+    } catch (err) { 
+        console.error(err);
+        switchToNextKey(); 
+    }
 }
 
 function switchToNextKey() {
@@ -85,12 +93,13 @@ function switchToNextKey() {
         if(ably) ably.close();
         connectToCloud();
     } else {
-        alert("Toutes les clés sont saturées !");
+        alert("Quota épuisé sur toutes les clés Ably.");
     }
 }
 
 function initGame() {
-    document.getElementById('login').style.display = 'none';
+    const loginScreen = document.getElementById('login');
+    if(loginScreen) loginScreen.style.display = 'none';
     if(scene) return;
 
     scene = new THREE.Scene();
@@ -100,27 +109,22 @@ function initGame() {
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
 
-    // Sol géant
-    scene.add(new THREE.GridHelper(400, 80, 0x00d4ff, 0x111111));
+    scene.add(new THREE.GridHelper(500, 100, 0x00d4ff, 0x111111));
     scene.add(new THREE.AmbientLight(0xffffff, 1.0));
 
-    // --- CONSTRUCTION DE L'ARÈNE ---
-    // 1. Murs de bordure (Limites du monde)
-    createWall(0, 80, 160, 2);  // Nord
-    createWall(0, -80, 160, 2); // Sud
-    createWall(80, 0, 2, 160);  // Est
-    createWall(-80, 0, 2, 160); // Ouest
+    // MURS DE BORDURE
+    createWall(0, 100, 200, 2);
+    createWall(0, -100, 200, 2);
+    createWall(100, 0, 2, 200);
+    createWall(-100, 0, 2, 200);
 
-    // 2. Obstacles intérieurs (Labyrinthe)
-    for(let i = 0; i < 25; i++) {
-        let rx = Math.floor(Math.random() * 120 - 60);
-        let rz = Math.floor(Math.random() * 120 - 60);
-        let rw = Math.random() > 0.5 ? 15 : 2;
-        let rd = rw === 15 ? 2 : 15;
-        
-        // On évite de poser un mur trop près du centre (spawn)
-        if(Math.abs(rx) > 10 || Math.abs(rz) > 10) {
-            createWall(rx, rz, rw, rd);
+    // MURS INTERIEURS (Labyrinthe)
+    for(let i = 0; i < 30; i++) {
+        let x = Math.random() * 160 - 80;
+        let z = Math.random() * 160 - 80;
+        if(Math.abs(x) > 15 || Math.abs(z) > 15) {
+            let isWide = Math.random() > 0.5;
+            createWall(x, z, isWide ? 20 : 2, isWide ? 2 : 20);
         }
     }
 
@@ -131,13 +135,9 @@ function initGame() {
 }
 
 function createWall(x, z, w, d) {
-    const geo = new THREE.BoxGeometry(w, 6, d);
-    const wall = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ 
-        color: 0x00d4ff, 
-        emissive: 0x00d4ff, 
-        emissiveIntensity: 0.3 
-    }));
-    wall.position.set(x, 3, z);
+    const geo = new THREE.BoxGeometry(w, 7, d);
+    const wall = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x00d4ff, emissive: 0x00d4ff, emissiveIntensity: 0.2 }));
+    wall.position.set(x, 3.5, z);
     scene.add(wall);
     walls.push({ minX: x - w/2 - 0.9, maxX: x + w/2 + 0.9, minZ: z - d/2 - 0.9, maxZ: z + d/2 + 0.9 });
 }
@@ -145,10 +145,11 @@ function createWall(x, z, w, d) {
 function createPlayerMesh(color) {
     const g = new THREE.Group();
     const mat = new THREE.MeshStandardMaterial({ color: color, emissive: color, emissiveIntensity: 0.5 });
-    g.add(new THREE.Mesh(new THREE.ConeGeometry(0.8, 2.0, 8), mat));
-    const h = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), mat);
-    h.position.y = 2.1;
-    g.add(h);
+    const body = new THREE.Mesh(new THREE.ConeGeometry(0.8, 2, 8), mat);
+    body.position.y = 1;
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), mat);
+    head.position.y = 2.2;
+    g.add(body, head);
     return g;
 }
 
@@ -158,7 +159,7 @@ function updateRemotePlayer(d) {
         scene.add(otherPlayers[d.o].mesh);
     }
     const p = otherPlayers[d.o];
-    p.mesh.position.set(d.x, 1.0, d.z);
+    p.mesh.position.set(d.x, 0, d.z);
     p.mesh.rotation.y = d.y;
     p.lastSeen = Date.now();
 }
@@ -169,33 +170,26 @@ function removePlayer(id) {
 
 function takeDamage(amt) {
     hp -= amt;
-    document.getElementById('health-bar').style.width = Math.max(0, hp) + "%";
+    const bar = document.getElementById('health-bar');
+    if(bar) bar.style.width = Math.max(0, hp) + "%";
     if(hp <= 0) respawn();
 }
 
 function respawn() {
     hp = 100;
-    document.getElementById('health-bar').style.width = "100%";
+    const bar = document.getElementById('health-bar');
+    if(bar) bar.style.width = "100%";
     playerGroup.position.set(Math.random()*10-5, 0, Math.random()*10-5);
-    document.getElementById('msgLog').textContent = "ÉLIMINÉ !";
-    setTimeout(() => document.getElementById('msgLog').textContent = "", 2000);
-}
-
-function shoot() {
-    const d = { t: 'f', o: myID, x: playerGroup.position.x, y: 1.6, z: playerGroup.position.z, dx: Math.sin(yaw), dz: Math.cos(yaw) };
-    channel.publish('p', d);
-    createBulletMesh(d);
-}
-
-function createBulletMesh(d) {
-    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.4, 8, 8), new THREE.MeshBasicMaterial({ color: d.o === myID ? 0x00ff00 : 0xff0000 }));
-    mesh.position.set(d.x, d.y, d.z);
-    scene.add(mesh);
-    bullets.push({ mesh: mesh, dir: new THREE.Vector3(d.dx, 0, d.dz), o: d.o, death: Date.now() + 2000 });
+    const log = document.getElementById('msgLog');
+    if(log) {
+        log.textContent = "SYSTEM REBOOT...";
+        setTimeout(() => log.textContent = "", 2000);
+    }
 }
 
 function loop() {
     requestAnimationFrame(loop);
+    if(!scene) return;
     const now = Date.now();
     const dt = 0.016;
 
@@ -206,7 +200,7 @@ function loop() {
     if(keys['KeyD']) move.sub(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
 
     if(move.length() > 0) {
-        const step = move.normalize().multiplyScalar(28 * dt);
+        const step = move.normalize().multiplyScalar(30 * dt);
         if(!checkWall(playerGroup.position.x + step.x, playerGroup.position.z)) playerGroup.position.x += step.x;
         if(!checkWall(playerGroup.position.x, playerGroup.position.z + step.z)) playerGroup.position.z += step.z;
     }
@@ -219,7 +213,7 @@ function loop() {
 
     for (let i = bullets.length - 1; i >= 0; i--) {
         const b = bullets[i];
-        b.mesh.position.addScaledVector(b.dir, 95 * dt);
+        b.mesh.position.addScaledVector(b.dir, 90 * dt);
         if(checkWall(b.mesh.position.x, b.mesh.position.z)) { scene.remove(b.mesh); bullets.splice(i, 1); continue; }
         if (b.o === myID) {
             for (let id in otherPlayers) {
@@ -234,7 +228,11 @@ function loop() {
 
     camera.position.set(playerGroup.position.x - Math.sin(yaw)*16, 9, playerGroup.position.z - Math.cos(yaw)*16);
     camera.lookAt(playerGroup.position);
-    document.getElementById('playerCount').textContent = Object.keys(otherPlayers).length;
+    
+    // SECURITE : Vérifier si l'élément existe avant d'écrire
+    const pCountEl = document.getElementById('playerCount');
+    if(pCountEl) pCountEl.textContent = Object.keys(otherPlayers).length;
+    
     renderer.render(scene, camera);
 }
 
@@ -243,15 +241,32 @@ function checkWall(x, z) {
     return false;
 }
 
+function shoot() {
+    const d = { t: 'f', o: myID, x: playerGroup.position.x, y: 1.8, z: playerGroup.position.z, dx: Math.sin(yaw), dz: Math.cos(yaw) };
+    channel.publish('p', d);
+    createBulletMesh(d);
+}
+
+function createBulletMesh(d) {
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.4, 8, 8), new THREE.MeshBasicMaterial({ color: d.o === myID ? 0x00ff00 : 0xff0000 }));
+    mesh.position.set(d.x, d.y, d.z);
+    scene.add(mesh);
+    bullets.push({ mesh: mesh, dir: new THREE.Vector3(d.dx, 0, d.dz), o: d.o, death: Date.now() + 2000 });
+}
+
 function setupControls() {
     window.addEventListener('keydown', e => keys[e.code] = true);
     window.addEventListener('keyup', e => keys[e.code] = false);
     document.addEventListener('mousemove', e => { if(document.pointerLockElement) yaw -= e.movementX * 0.003; });
-    window.addEventListener('mousedown', () => { if(document.pointerLockElement) shoot(); else renderer.domElement.requestPointerLock().catch(()=>{}); });
+    window.addEventListener('mousedown', () => { 
+        if(document.pointerLockElement) shoot(); 
+        else renderer.domElement.requestPointerLock().catch(()=>{}); 
+    });
 }
 </script>
 </body>
 </html>
+
 
 
 
