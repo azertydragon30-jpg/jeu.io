@@ -1,0 +1,9 @@
+{
+  "name": "Neon Strike Ghost Ops",
+  "short_name": "NeonStrike",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#020008",
+  "theme_color": "#00d4ff",
+  "orientation": "landscape"
+}
