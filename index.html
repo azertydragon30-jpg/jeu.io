@@ -2,450 +2,315 @@
 <html lang="fr">
 <head>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Neon Strike - Ghost Ops | Jeu de Tir Multijoueur</title>
     
-    <meta name="description" content="Affronte tes amis dans Neon Strike: Ghost Ops. Un FPS multijoueur dans une arène néon géante avec mini-map, arsenal varié et invisibilité. Joue gratuitement en ligne !">
-    <meta name="keywords" content="jeu en ligne, multijoueur, browser game, shooter, fps, three.js, néon, io game, gratuit">
-    <meta property="og:title" content="Neon Strike - Ghost Ops">
-    <meta property="og:description" content="Rejoins l'arène géante. Utilise le radar, change d'arme et deviens invisible pour surprendre tes ennemis.">
-
-    <meta name="google-site-verification" content="COLLE_TON_CODE_ALPHANUMERIQUE_ICI" />
-    
+    <meta name="description" content="Neon Strike: Ghost Ops. FPS multijoueur néon avec mini-map, arsenal et invisibilité. Gratuit sur navigateur.">
+    <meta name="google-site-verification" content="COLLE_TON_CODE_ICI" />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎯</text></svg>">
-    
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
-    
+
     <style>
-        html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: #fff; font-family: 'Courier New', monospace; }
-        /* UI Principal (en haut à gauche) */
-        #ui { position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.8); padding: 15px; border: 2px solid #00d4ff; border-radius: 10px; pointer-events: none; z-index: 10; }
-        
-        /* NOUVEAU : Style de la Mini-Map (Ronde en haut à droite) */
-        #minimap-container { position: absolute; top: 20px; right: 20px; width: 150px; height: 150px; background: rgba(0,20,30,0.9); border: 2px solid #00d4ff; border-radius: 100%; overflow: hidden; z-index: 10; box-shadow: 0 0 15px rgba(0, 212, 255, 0.3); }
+        html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: #fff; font-family: 'Courier New', monospace; user-select: none; touch-action: none; }
+        canvas { display: block; }
+
+        /* UI GÉNÉRALE */
+        #ui { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.7); padding: 10px; border: 2px solid #00d4ff; border-radius: 8px; pointer-events: none; z-index: 10; font-size: 14px; }
+        #health-container { width: 150px; height: 10px; background: #333; border: 1px solid #fff; margin-top: 5px; }
+        #health-bar { width: 100%; height: 100%; background: #ff0055; transition: width 0.3s; }
+        #weapon-ui { margin-top: 8px; color: #ffeb3b; font-weight: bold; }
+        .active-w { color: #00ff00; text-shadow: 0 0 5px #00ff00; }
+
+        /* MINI-MAP */
+        #minimap-container { position: absolute; top: 10px; right: 10px; width: 120px; height: 120px; background: rgba(0,20,30,0.8); border: 2px solid #00d4ff; border-radius: 50%; overflow: hidden; z-index: 10; }
         #minimap { width: 100%; height: 100%; }
 
-        /* NOUVEAU : Interface des Armes et de l'Invisibilité */
-        #weapon-ui { margin-top: 10px; font-size: 14px; color: #ffeb3b; }
-        #invis-ui { margin-top: 5px; font-size: 12px; color: #888; transition: color 0.3s; }
-        .active-w { color: #00ff00; font-weight: bold; text-shadow: 0 0 5px #00ff00; }
-        
-        /* Barre de vie */
-        #health-container { width: 200px; height: 15px; background: #333; border: 1px solid #fff; margin-top: 10px; }
-        #health-bar { width: 100%; height: 100%; background: #ff0055; transition: width 0.3s; }
-        
-        /* Écran de connexion */
-        #login { position: fixed; inset: 0; background: #000; display: flex; flex-direction: column; align-items: center; justify-content:center; z-index: 100; }
-        .box { background: #111; padding: 40px; border: 3px solid #00d4ff; border-radius: 20px; text-align: center; box-shadow: 0 0 30px rgba(0, 212, 255, 0.2); }
-        button { padding: 15px 40px; cursor: pointer; font-weight: bold; background: #00d4ff; border: none; border-radius: 5px; font-size: 18px; color: #000; text-transform: uppercase; transition: background 0.3s; }
-        button:hover { background: #fff; }
-        
-        /* Messages au centre de l'écran (Respawn...) */
-        #msgLog { color: #ff0055; font-weight: bold; font-size: 24px; text-align: center; width: 100%; position: absolute; top: 15%; pointer-events: none; z-index: 50; text-shadow: 0 0 10px #ff0055; }
+        /* ÉCRAN D'ACCUEIL */
+        #login { position: fixed; inset: 0; background: #000; display: flex; align-items: center; justify-content:center; z-index: 100; }
+        .box { background: #111; padding: 30px; border: 3px solid #00d4ff; border-radius: 15px; text-align: center; }
+        button { padding: 12px 30px; cursor: pointer; background: #00d4ff; border: none; border-radius: 5px; font-weight: bold; text-transform: uppercase; }
+
+        /* CONTRÔLES MOBILES */
+        #mobile-controls { display: none; }
+        @media (pointer: coarse) {
+            #mobile-controls { display: block; position: fixed; inset: 0; pointer-events: none; z-index: 50; }
+            #joystick-base { position: absolute; bottom: 30px; left: 30px; width: 80px; height: 80px; background: rgba(255,255,255,0.1); border: 2px solid #00d4ff; border-radius: 50%; pointer-events: auto; }
+            #joystick-stick { position: absolute; top: 20px; left: 20px; width: 40px; height: 40px; background: #00d4ff; border-radius: 50%; }
+            #mobile-btns { position: absolute; bottom: 30px; right: 20px; display: flex; flex-direction: column; gap: 10px; pointer-events: auto; }
+            .m-btn { width: 60px; height: 60px; border-radius: 50%; border: none; background: rgba(0,212,255,0.3); color: white; font-weight: bold; font-size: 10px; border: 1px solid #00d4ff; }
+            #m-shoot { background: rgba(255, 0, 85, 0.5); width: 70px; height: 70px; }
+        }
+
+        #msgLog { position: absolute; top: 20%; width: 100%; text-align: center; color: #ff0055; font-size: 24px; font-weight: bold; pointer-events: none; z-index: 100; }
     </style>
 </head>
 <body>
 
 <div id="msgLog"></div>
 
-<div id="minimap-container">
-    <canvas id="minimap" width="150" height="150"></canvas>
-</div>
-
 <div id="login">
     <div class="box">
-        <h1 style="color:#00d4ff; letter-spacing: 5px;">GHOST OPS</h1>
-        <p id="keyStatus" style="color: #555; font-size: 12px;">Système en attente...</p>
+        <h1 style="color:#00d4ff">NEON STRIKE</h1>
+        <p id="keyStatus" style="font-size: 12px; color: #666;">Prêt au combat...</p>
         <button onclick="connectToCloud()">DÉPLOIEMENT</button>
     </div>
 </div>
 
 <div id="ui">
-    <div style="color:#00d4ff">SCORE: <span id="myScore">0</span></div>
-    <div>JOUEURS: <span id="playerCount">0</span></div>
+    <div>SCORE: <span id="myScore">0</span> | JOUEURS: <span id="playerCount">0</span></div>
     <div id="health-container"><div id="health-bar"></div></div>
-    
     <div id="weapon-ui">
-        <span id="w1" class="active-w">[1] BLASTER</span> | 
-        <span id="w2">[2] SNIPER</span> | 
+        <span id="w1" class="active-w">[1] BLASTER</span><br>
+        <span id="w2">[2] SNIPER</span><br>
         <span id="w3">[3] SHOTGUN</span>
     </div>
-    <div id="invis-ui">[E] FANTÔME : PRÊT</div>
+    <div id="invis-ui" style="font-size: 10px; margin-top:5px; color: #888;">[E] FANTÔME : PRÊT</div>
+</div>
+
+<div id="minimap-container">
+    <canvas id="minimap" width="120" height="120"></canvas>
+</div>
+
+<div id="mobile-controls">
+    <div id="joystick-base"><div id="joystick-stick"></div></div>
+    <div id="mobile-btns">
+        <button class="m-btn" id="m-next">ARME</button>
+        <button class="m-btn" id="m-invis">FANTÔME</button>
+        <button class="m-btn" id="m-shoot">FEU</button>
+    </div>
 </div>
 
 <script>
-// --- CONFIGURATION ---
-const KEYS = [
-    'hoXqWQ.xS6MJA:4jw_S7dp30pIrB7Sm3tCM6S4WQa57PAqkPdp-WN-Ros',
-    'VxkiKg.ll3U8g:y10rnnVr2hatHn4iYPs6FGt_Ei3V1WkmoJoZIyEcwCo'
-];
+// --- CONFIG ---
+const KEYS = ['hoXqWQ.xS6MJA:4jw_S7dp30pIrB7Sm3tCM6S4WQa57PAqkPdp-WN-Ros', 'VxkiKg.ll3U8g:y10rnnVr2hatHn4iYPs6FGt_Ei3V1WkmoJoZIyEcwCo'];
 let currentKeyIndex = 0;
-
-// ARSENAL
 const WEAPONS = {
-    1: { name: 'BLASTER', delay: 200, speed: 90, dmg: 20, color: 0x00ff00, spread: 0, count: 1 },
-    2: { name: 'SNIPER', delay: 1500, speed: 250, dmg: 80, color: 0xffff00, spread: 0, count: 1 },
-    3: { name: 'SHOTGUN', delay: 1000, speed: 70, dmg: 15, color: 0xff0000, spread: 0.2, count: 4 }
+    1: { name: 'BLASTER', delay: 250, speed: 100, dmg: 20, color: 0x00ff00, spread: 0, count: 1 },
+    2: { name: 'SNIPER', delay: 1500, speed: 300, dmg: 80, color: 0xffff00, spread: 0, count: 1 },
+    3: { name: 'SHOTGUN', delay: 800, speed: 80, dmg: 15, color: 0xff0000, spread: 0.2, count: 4 }
 };
 
-let ably, channel, myID;
 let scene, camera, renderer, playerGroup, yaw = 0;
-let otherPlayers = {}; 
-let bullets = [], walls = [], keys = {};
-let lastSendTime = 0, score = 0, hp = 100;
-
-// ETAT DU JOUEUR
-let currentWeapon = 1;
-let lastShootTime = 0;
-let isInvisible = false;
-let lastInvisTime = 0;
-let invisDuration = 5000;
-let invisCooldown = 15000;
-
-// MINI MAP
-const mapCanvas = document.getElementById('minimap');
-const mapCtx = mapCanvas.getContext('2d');
-const MAP_SCALE = 0.3; // Zoom du radar
+let ably, channel, myID, otherPlayers = {}, bullets = [], walls = [], keys = {};
+let hp = 100, score = 0, currentWeapon = 1, lastShoot = 0;
+let isInvisible = false, lastInvis = 0;
+let mobileMove = { x: 0, y: 0 };
 
 async function connectToCloud() {
     myID = "u-" + Math.random().toString(36).substr(2, 4);
-    const statusEl = document.getElementById('keyStatus');
-    if(statusEl) statusEl.textContent = "Connexion Clé #" + (currentKeyIndex + 1) + "...";
-    
+    document.getElementById('keyStatus').textContent = "Liaison satellite...";
     try {
         ably = new Ably.Realtime({ key: KEYS[currentKeyIndex], clientId: myID });
-        ably.connection.on('failed', () => switchToNextKey());
-        
-        channel = ably.channels.get('neon-ops-v1');
-
-        channel.subscribe('p', (msg) => {
-            const d = msg.data;
-            if (d.o === myID) return;
-            if (d.t === 'm') updateRemotePlayer(d);
-            else if (d.t === 'f') createBulletMesh(d);
-            else if (d.t === 'h' && d.tgt === myID) takeDamage(d.dmg);
+        channel = ably.channels.get('neon-arena-v9');
+        channel.subscribe('p', (m) => {
+            if (m.data.o === myID) return;
+            if (m.data.t === 'm') updateRemote(m.data);
+            else if (m.data.t === 'f') createBullet(m.data);
+            else if (m.data.t === 'h' && m.data.tgt === myID) takeDamage(m.data.dmg);
         });
-
-        channel.presence.subscribe('leave', (m) => removePlayer(m.clientId));
+        channel.presence.subscribe('leave', (m) => { if(otherPlayers[m.clientId]) { scene.remove(otherPlayers[m.clientId].mesh); delete otherPlayers[m.clientId]; }});
         await channel.presence.enter();
-
         initGame();
-        
-        window.addEventListener('beforeunload', () => {
-            if(channel) channel.presence.leave();
-            if(ably) ably.close();
-        });
-    } catch (err) { switchToNextKey(); }
-}
-
-function switchToNextKey() {
-    currentKeyIndex++;
-    if (currentKeyIndex < KEYS.length) {
-        if(ably) ably.close();
-        connectToCloud();
-    } else {
-        alert("Quota épuisé sur toutes les clés.");
+    } catch (e) { 
+        currentKeyIndex++; 
+        if(currentKeyIndex < KEYS.length) connectToCloud(); 
+        else alert("Serveurs saturés."); 
     }
 }
 
 function initGame() {
     document.getElementById('login').style.display = 'none';
-    if(scene) return;
-
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x020008);
-    // Brouillard pour l'ambiance et cacher le bout de la map géante
-    scene.fog = new THREE.FogExp2(0x020008, 0.015);
+    scene.fog = new THREE.FogExp2(0x020008, 0.01);
 
     camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
 
-    // SOL GÉANT (400x400)
-    scene.add(new THREE.GridHelper(400, 100, 0x00d4ff, 0x111111));
+    scene.add(new THREE.GridHelper(400, 80, 0x00d4ff, 0x111111));
     scene.add(new THREE.AmbientLight(0xffffff, 0.8));
 
-    // BORDURES
+    // MURS
     createWall(0, 200, 400, 4); createWall(0, -200, 400, 4);
     createWall(200, 0, 4, 400); createWall(-200, 0, 4, 400);
-
-    // LABYRINTHE ÉTENDU
-    for(let i = 0; i < 60; i++) {
-        let x = Math.random() * 360 - 180;
-        let z = Math.random() * 360 - 180;
-        if(Math.abs(x) > 20 || Math.abs(z) > 20) { // Zone de spawn libre
-            let isWide = Math.random() > 0.5;
-            createWall(x, z, isWide ? 25 : 3, isWide ? 3 : 25);
-        }
+    for(let i=0; i<50; i++) {
+        let x = Math.random()*360-180, z = Math.random()*360-180;
+        if(Math.abs(x)>20 || Math.abs(z)>20) createWall(x, z, Math.random()>0.5?20:3, Math.random()>0.5?3:20);
     }
 
     playerGroup = createPlayerMesh(0x00d4ff);
     scene.add(playerGroup);
-    setupControls();
+    setupInputs();
     loop();
 }
 
 function createWall(x, z, w, d) {
-    const geo = new THREE.BoxGeometry(w, 8, d);
-    const wall = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x00d4ff, emissive: 0x00d4ff, emissiveIntensity: 0.2 }));
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(w, 8, d), new THREE.MeshStandardMaterial({ color: 0x00d4ff, emissive: 0x00d4ff, emissiveIntensity: 0.2 }));
     wall.position.set(x, 4, z);
     scene.add(wall);
-    walls.push({ minX: x - w/2 - 1, maxX: x + w/2 + 1, minZ: z - d/2 - 1, maxZ: z + d/2 + 1 });
+    walls.push({ minX: x-w/2-1, maxX: x+w/2+1, minZ: z-d/2-1, maxZ: z+d/2+1 });
 }
 
-function createPlayerMesh(color) {
+function createPlayerMesh(col) {
     const g = new THREE.Group();
-    // Material transparent pour l'invisibilité
-    const mat = new THREE.MeshStandardMaterial({ 
-        color: color, 
-        emissive: color, 
-        emissiveIntensity: 0.5,
-        transparent: true,
-        opacity: 1.0
-    });
-    const body = new THREE.Mesh(new THREE.ConeGeometry(0.8, 2, 8), mat);
-    body.position.y = 1;
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), mat);
-    head.position.y = 2.2;
-    g.add(body, head);
-    return g;
+    const mat = new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.5, transparent: true });
+    const b = new THREE.Mesh(new THREE.ConeGeometry(0.8, 2, 8), mat); b.position.y = 1;
+    const h = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), mat); h.position.y = 2.2;
+    g.add(b, h); return g;
 }
 
-function updateRemotePlayer(d) {
+function updateRemote(d) {
     if(!otherPlayers[d.o]) {
-        otherPlayers[d.o] = { mesh: createPlayerMesh(0xff0055), invisible: false };
+        otherPlayers[d.o] = { mesh: createPlayerMesh(0xff0055), invis: false };
         scene.add(otherPlayers[d.o].mesh);
     }
     const p = otherPlayers[d.o];
     p.mesh.position.set(d.x, 0, d.z);
     p.mesh.rotation.y = d.y;
-    
-    // Gérer l'invisibilité visuelle
-    p.invisible = d.i; // d.i = is invisible
-    const opacity = d.i ? 0.05 : 1.0; // Presque invisible mais légère distorsion
-    p.mesh.children.forEach(c => c.material.opacity = opacity);
+    p.invis = d.i;
+    p.mesh.children.forEach(c => c.material.opacity = d.i ? 0.05 : 1);
 }
 
-function removePlayer(id) {
-    if(otherPlayers[id]) { scene.remove(otherPlayers[id].mesh); delete otherPlayers[id]; }
-}
-
-function takeDamage(amt) {
-    hp -= amt;
-    const bar = document.getElementById('health-bar');
-    if(bar) bar.style.width = Math.max(0, hp) + "%";
+function takeDamage(dmg) {
+    hp -= dmg;
+    document.getElementById('health-bar').style.width = Math.max(0, hp) + "%";
     if(hp <= 0) respawn();
 }
 
 function respawn() {
-    hp = 100;
-    document.getElementById('health-bar').style.width = "100%";
-    
-    let safeX, safeZ;
-    do {
-        safeX = Math.random() * 300 - 150;
-        safeZ = Math.random() * 300 - 150;
-    } while (checkWall(safeX, safeZ));
-
-    playerGroup.position.set(safeX, 0, safeZ);
-    playerGroup.children.forEach(c => c.material.opacity = 1.0);
-    isInvisible = false;
-    
-    const log = document.getElementById('msgLog');
-    log.textContent = "RESPAWN...";
-    setTimeout(() => log.textContent = "", 2000);
+    hp = 100; document.getElementById('health-bar').style.width = "100%";
+    let x, z; do { x = Math.random()*300-150; z = Math.random()*300-150; } while(checkWall(x,z));
+    playerGroup.position.set(x,0,z);
+    msg("REPLOIEMENT...");
 }
 
-// --- GAME LOOP ---
+function msg(t) { const l = document.getElementById('msgLog'); l.textContent = t; setTimeout(()=>l.textContent="", 2000); }
+
 function loop() {
     requestAnimationFrame(loop);
-    if(!scene) return;
     const now = Date.now();
     const dt = 0.016;
 
-    // 1. Déplacement
+    // MOUVEMENT
     const move = new THREE.Vector3();
-    if(keys['KeyW']) move.add(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
-    if(keys['KeyS']) move.sub(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
-    if(keys['KeyA']) move.add(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
-    if(keys['KeyD']) move.sub(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
+    if(keys['KeyW'] || mobileMove.y < -0.3) move.add(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
+    if(keys['KeyS'] || mobileMove.y > 0.3) move.sub(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
+    if(keys['KeyA'] || mobileMove.x < -0.3) move.add(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
+    if(keys['KeyD'] || mobileMove.x > 0.3) move.sub(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
 
     if(move.length() > 0) {
-        const step = move.normalize().multiplyScalar(30 * dt); // Vitesse normale
-        if(!checkWall(playerGroup.position.x + step.x, playerGroup.position.z)) playerGroup.position.x += step.x;
-        if(!checkWall(playerGroup.position.x, playerGroup.position.z + step.z)) playerGroup.position.z += step.z;
+        const s = move.normalize().multiplyScalar(35 * dt);
+        if(!checkWall(playerGroup.position.x + s.x, playerGroup.position.z)) playerGroup.position.x += s.x;
+        if(!checkWall(playerGroup.position.x, playerGroup.position.z + s.z)) playerGroup.position.z += s.z;
     }
     playerGroup.rotation.y = yaw;
 
-    // 2. Gestion Armes
-    if(keys['Digit1']) switchWeapon(1);
-    if(keys['Digit2']) switchWeapon(2);
-    if(keys['Digit3']) switchWeapon(3);
-
-    // 3. Gestion Invisibilité
-    if(keys['KeyE']) {
-        if(now - lastInvisTime > invisCooldown) {
-            isInvisible = true;
-            lastInvisTime = now;
-            // Effet visuel sur soi
-            playerGroup.children.forEach(c => c.material.opacity = 0.3);
-            setTimeout(() => {
-                isInvisible = false;
-                playerGroup.children.forEach(c => c.material.opacity = 1.0);
-            }, invisDuration);
-        }
-    }
-    // Update UI Invisibilité
-    const timeLeft = Math.max(0, invisCooldown - (now - lastInvisTime));
-    document.getElementById('invis-ui').textContent = timeLeft === 0 ? "[E] FANTÔME : PRÊT" : `RECHARGE : ${(timeLeft/1000).toFixed(1)}s`;
-    document.getElementById('invis-ui').style.color = isInvisible ? "#00ff00" : (timeLeft === 0 ? "#888" : "#ff0000");
-
-    // 4. Réseau (Envoi Position + Etat Invisibilité)
-    if(now - lastSendTime > 100) {
-        channel.publish('p', { 
-            t: 'm', o: myID, 
-            x: playerGroup.position.x, 
-            z: playerGroup.position.z, 
-            y: yaw,
-            i: isInvisible // On dit aux autres si on est invisible
-        });
-        lastSendTime = now;
-    }
-
-    // 5. Balles
-    for (let i = bullets.length - 1; i >= 0; i--) {
-        const b = bullets[i];
-        b.mesh.position.addScaledVector(b.dir, b.speed * dt);
-        if(checkWall(b.mesh.position.x, b.mesh.position.z)) { scene.remove(b.mesh); bullets.splice(i, 1); continue; }
-        
-        if (b.o === myID) {
-            for (let id in otherPlayers) {
-                if (b.mesh.position.distanceTo(otherPlayers[id].mesh.position) < 2.5) {
-                    channel.publish('p', { t: 'h', o: myID, tgt: id, dmg: b.dmg });
-                    scene.remove(b.mesh); bullets.splice(i, 1); break;
+    // BALLES
+    for(let i=bullets.length-1; i>=0; i--) {
+        const b = bullets[i]; b.mesh.position.addScaledVector(b.dir, b.speed * dt);
+        if(checkWall(b.mesh.position.x, b.mesh.position.z)) { scene.remove(b.mesh); bullets.splice(i,1); continue; }
+        if(b.o === myID) {
+            for(let id in otherPlayers) {
+                if(b.mesh.position.distanceTo(otherPlayers[id].mesh.position) < 2.5) {
+                    channel.publish('p', { t:'h', o:myID, tgt:id, dmg:b.dmg });
+                    scene.remove(b.mesh); bullets.splice(i,1); break;
                 }
             }
         }
-        if (bullets[i] && now > b.death) { scene.remove(b.mesh); bullets.splice(i, 1); }
+        if(bullets[i] && now > b.death) { scene.remove(b.mesh); bullets.splice(i,1); }
     }
 
-    // 6. Camera & UI
-    camera.position.set(playerGroup.position.x - Math.sin(yaw)*16, 10, playerGroup.position.z - Math.cos(yaw)*16);
+    // SYNC
+    if(now - lastShoot > 100) {
+        channel.publish('p', { t:'m', o:myID, x:playerGroup.position.x, z:playerGroup.position.z, y:yaw, i:isInvisible });
+        lastShoot = now;
+    }
+
+    camera.position.set(playerGroup.position.x - Math.sin(yaw)*15, 10, playerGroup.position.z - Math.cos(yaw)*15);
     camera.lookAt(playerGroup.position);
-    document.getElementById('playerCount').textContent = Object.keys(otherPlayers).length;
     
+    updateMinimap();
     renderer.render(scene, camera);
-    updateMiniMap();
 }
 
-function updateMiniMap() {
-    // Effacer le canvas
-    mapCtx.fillStyle = '#00141e';
-    mapCtx.fillRect(0, 0, 150, 150);
-    
-    // Centre du radar (c'est nous)
-    const cx = 75;
-    const cy = 75;
+function checkWall(x,z) { for(let w of walls) if(x>w.minX && x<w.maxX && z>w.minZ && z<w.maxZ) return true; return false; }
 
-    // Dessiner les ennemis
+function updateMinimap() {
+    const ctx = document.getElementById('minimap').getContext('2d');
+    ctx.fillStyle = '#00141e'; ctx.fillRect(0,0,120,120);
+    const cx=60, cy=60;
     for(let id in otherPlayers) {
-        const p = otherPlayers[id];
-        // SI LE JOUEUR EST INVISIBLE, ON NE LE DESSINE PAS !
-        if(p.invisible) continue; 
-
-        // Calcul position relative
-        const relX = (p.mesh.position.x - playerGroup.position.x) * MAP_SCALE;
-        const relZ = (p.mesh.position.z - playerGroup.position.z) * MAP_SCALE;
-
-        // Rotation du point en fonction de notre orientation (pour que "haut" soit toujours devant nous)
-        const rotX = relX * Math.cos(yaw) - relZ * Math.sin(yaw);
-        const rotY = relX * Math.sin(yaw) + relZ * Math.cos(yaw);
-
-        // Dessiner le point rouge
-        if(Math.abs(rotX) < 70 && Math.abs(rotY) < 70) {
-            mapCtx.fillStyle = '#ff0055';
-            mapCtx.beginPath();
-            mapCtx.arc(cx - rotX, cy + rotY, 3, 0, Math.PI*2);
-            mapCtx.fill();
-        }
+        if(otherPlayers[id].invis) continue;
+        const rx = (otherPlayers[id].mesh.position.x - playerGroup.position.x)*0.3;
+        const rz = (otherPlayers[id].mesh.position.z - playerGroup.position.z)*0.3;
+        const rotX = rx*Math.cos(yaw) - rz*Math.sin(yaw);
+        const rotY = rx*Math.sin(yaw) + rz*Math.cos(yaw);
+        ctx.fillStyle = '#ff0055'; ctx.beginPath(); ctx.arc(cx-rotX, cy+rotY, 3, 0, 7); ctx.fill();
     }
-
-    // Dessiner le joueur (point vert au centre)
-    mapCtx.fillStyle = '#00ff00';
-    mapCtx.beginPath();
-    mapCtx.arc(cx, cy, 4, 0, Math.PI*2);
-    mapCtx.fill();
-    
-    // Cône de vision
-    mapCtx.strokeStyle = 'rgba(0, 255, 0, 0.3)';
-    mapCtx.beginPath();
-    mapCtx.moveTo(cx, cy);
-    mapCtx.lineTo(cx - 10, cy - 20);
-    mapCtx.lineTo(cx + 10, cy - 20);
-    mapCtx.closePath();
-    mapCtx.stroke();
-}
-
-function checkWall(x, z) {
-    for(let w of walls) { if(x > w.minX && x < w.maxX && z > w.minZ && z < w.maxZ) return true; }
-    return false;
-}
-
-function switchWeapon(id) {
-    currentWeapon = id;
-    document.querySelectorAll('#weapon-ui span').forEach(el => el.className = '');
-    document.getElementById('w'+id).className = 'active-w';
+    ctx.fillStyle = '#00ff00'; ctx.beginPath(); ctx.arc(cx,cy,4,0,7); ctx.fill();
 }
 
 function shoot() {
-    const now = Date.now();
     const w = WEAPONS[currentWeapon];
-    
-    if(now - lastShootTime < w.delay) return;
-    if(isInvisible) return; // Impossible de tirer en invisible (sinon c'est trop facile)
-
-    lastShootTime = now;
-    
-    // Shotgun tire plusieurs balles, les autres 1 seule
+    if(Date.now() - lastShoot < w.delay || isInvisible) return;
     for(let i=0; i<w.count; i++) {
-        // Petit décalage angulaire pour le shotgun
-        const angleOffset = (Math.random() - 0.5) * w.spread; 
-        const finalYaw = yaw + angleOffset;
-
-        const d = { 
-            t: 'f', o: myID, 
-            x: playerGroup.position.x, y: 1.8, z: playerGroup.position.z, 
-            dx: Math.sin(finalYaw), dz: Math.cos(finalYaw),
-            spd: w.speed, color: w.color, dmg: w.dmg
-        };
-        channel.publish('p', d);
-        createBulletMesh(d);
+        const ay = yaw + (Math.random()-0.5)*w.spread;
+        const d = { t:'f', o:myID, x:playerGroup.position.x, y:1.5, z:playerGroup.position.z, dx:Math.sin(ay), dz:Math.cos(ay), spd:w.speed, col:w.color, dmg:w.dmg };
+        channel.publish('p', d); createBullet(d);
     }
 }
 
-function createBulletMesh(d) {
-    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8, 8), new THREE.MeshBasicMaterial({ color: d.color || 0xffff00 }));
-    mesh.position.set(d.x, d.y, d.z);
-    scene.add(mesh);
-    bullets.push({ 
-        mesh: mesh, 
-        dir: new THREE.Vector3(d.dx, 0, d.dz), 
-        o: d.o, 
-        speed: d.spd || 90, 
-        dmg: d.dmg || 20,
-        death: Date.now() + 2000 
-    });
+function createBullet(d) {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(0.3), new THREE.MeshBasicMaterial({ color: d.col }));
+    m.position.set(d.x, d.y, d.z); scene.add(m);
+    bullets.push({ mesh:m, dir:new THREE.Vector3(d.dx,0,d.dz), speed:d.spd, dmg:d.dmg, o:d.o, death:Date.now()+2000 });
 }
 
-function setupControls() {
-    window.addEventListener('keydown', e => keys[e.code] = true);
-    window.addEventListener('keyup', e => keys[e.code] = false);
-    document.addEventListener('mousemove', e => { if(document.pointerLockElement) yaw -= e.movementX * 0.003; });
-    window.addEventListener('mousedown', () => { 
-        if(document.pointerLockElement) shoot(); 
-        else renderer.domElement.requestPointerLock().catch(()=>{}); 
-    });
+function setupInputs() {
+    const isMobile = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+    if(isMobile) {
+        const base = document.getElementById('joystick-base'), stick = document.getElementById('joystick-stick');
+        base.ontouchmove = (e) => {
+            const r = base.getBoundingClientRect(), t = e.touches[0];
+            const dx = t.clientX - (r.left+40), dy = t.clientY - (r.top+40);
+            const dist = Math.min(Math.sqrt(dx*dx+dy*dy), 30);
+            const ang = Math.atan2(dy, dx);
+            mobileMove = { x: (Math.cos(ang)*dist)/30, y: (Math.sin(ang)*dist)/30 };
+            stick.style.transform = `translate(${mobileMove.x*30}px, ${mobileMove.y*30}px)`;
+        };
+        base.ontouchend = () => { mobileMove = {x:0,y:0}; stick.style.transform = "translate(0,0)"; };
+        window.ontouchmove = (e) => { if(!base.contains(e.target)) yaw -= e.touches[0].clientX * 0.0001; };
+        document.getElementById('m-shoot').onclick = shoot;
+        document.getElementById('m-invis').onclick = toggleInvis;
+        document.getElementById('m-next').onclick = () => { currentWeapon = (currentWeapon%3)+1; updateWUI(); };
+    } else {
+        window.onkeydown = (e) => {
+            keys[e.code] = true;
+            if(e.code==='Digit1') {currentWeapon=1; updateWUI();}
+            if(e.code==='Digit2') {currentWeapon=2; updateWUI();}
+            if(e.code==='Digit3') {currentWeapon=3; updateWUI();}
+            if(e.code==='KeyE') toggleInvis();
+        };
+        window.onkeyup = (e) => keys[e.code] = false;
+        document.onmousemove = (e) => { if(document.pointerLockElement) yaw -= e.movementX * 0.003; };
+        window.onmousedown = () => { if(document.pointerLockElement) shoot(); else renderer.domElement.requestPointerLock(); };
+    }
+}
+
+function toggleInvis() {
+    if(Date.now()-lastInvis < 15000) return;
+    isInvisible = true; lastInvis = Date.now();
+    playerGroup.children.forEach(c => c.material.opacity = 0.2);
+    setTimeout(() => { isInvisible = false; playerGroup.children.forEach(c => c.material.opacity = 1); }, 5000);
+}
+
+function updateWUI() {
+    document.querySelectorAll('#weapon-ui span').forEach(s => s.className = '');
+    document.getElementById('w'+currentWeapon).className = 'active-w';
 }
 </script>
 </body>
