@@ -3,36 +3,26 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Strike - Ghost Ops | Multijoueur</title>
+    <title>Neon Strike - Human Edition</title>
     
-    <meta name="description" content="Neon Strike: Ghost Ops. FPS multijoueur néon.">
-    <meta name="google-site-verification" content="TON_CODE_ICI" />
-    
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎯</text></svg>">
-
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
 
     <style>
         html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: #fff; font-family: 'Courier New', monospace; user-select: none; touch-action: none; }
         canvas { display: block; }
-
         #ui { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.7); padding: 10px; border: 2px solid #00d4ff; border-radius: 8px; z-index: 10; font-size: 14px; pointer-events: none; }
         #health-container { width: 150px; height: 10px; background: #333; border: 1px solid #fff; margin-top: 5px; }
         #health-bar { width: 100%; height: 100%; background: #ff0055; transition: width 0.3s; }
-
         #leaderboard { position: absolute; top: 10px; right: 140px; background: rgba(0,0,0,0.7); padding: 10px; border: 1px solid #ffeb3b; border-radius: 5px; z-index: 10; min-width: 120px; font-size: 12px; }
         .lb-title { color: #ffeb3b; font-weight: bold; border-bottom: 1px solid #ffeb3b; margin-bottom: 5px; text-align: center; }
         .lb-entry { display: flex; justify-content: space-between; gap: 10px; }
         .me { color: #00ff00; font-weight: bold; }
-
         #minimap-container { position: absolute; top: 10px; right: 10px; width: 120px; height: 120px; background: rgba(0,20,30,0.8); border: 2px solid #00d4ff; border-radius: 50%; overflow: hidden; z-index: 10; }
         #minimap { width: 100%; height: 100%; }
-
         #login { position: fixed; inset: 0; background: #000; display: flex; align-items: center; justify-content:center; z-index: 100; }
         .box { background: #111; padding: 30px; border: 3px solid #00d4ff; border-radius: 15px; text-align: center; }
         button { padding: 12px 30px; cursor: pointer; background: #00d4ff; border: none; border-radius: 5px; font-weight: bold; text-transform: uppercase; }
-
         #mobile-controls { display: none; }
         @media (pointer: coarse) {
             #mobile-controls { display: block; position: fixed; inset: 0; pointer-events: none; z-index: 50; }
@@ -49,7 +39,7 @@
 <div id="login">
     <div class="box">
         <h1 style="color:#00d4ff">NEON STRIKE</h1>
-        <button onclick="connectToCloud()">JOUER</button>
+        <button onclick="connectToCloud()">DÉPLOIEMENT</button>
     </div>
 </div>
 
@@ -93,8 +83,7 @@ const WEAPONS = {
 let scene, camera, renderer, playerGroup, yaw = 0;
 let ably, channel, myID, otherPlayers = {}, bullets = [], walls = [], keysDown = {};
 let hp = 100, score = 0, currentWeapon = 1;
-let lastShoot = 0, lastSync = 0;
-let isInvisible = false, lastInvis = 0;
+let lastShoot = 0, lastSync = 0, isInvisible = false, lastInvis = 0;
 let mobileMove = { x: 0, y: 0 };
 
 async function connectToCloud() {
@@ -117,6 +106,34 @@ async function connectToCloud() {
     }
 }
 
+function createPlayerMesh(col) {
+    const group = new THREE.Group();
+    const mat = new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.3, transparent: true });
+
+    // Tête
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), mat);
+    head.position.y = 2.6;
+    
+    // Buste (Torse)
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.2, 0.4), mat);
+    torso.position.y = 1.8;
+
+    // Bras
+    const armL = new THREE.Mesh(new THREE.BoxGeometry(0.25, 1, 0.25), mat);
+    armL.position.set(-0.55, 1.8, 0);
+    const armR = new THREE.Mesh(new THREE.BoxGeometry(0.25, 1, 0.25), mat);
+    armR.position.set(0.55, 1.8, 0);
+
+    // Jambes
+    const legL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.1, 0.3), mat);
+    legL.position.set(-0.25, 0.6, 0);
+    const legR = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.1, 0.3), mat);
+    legR.position.set(0.25, 0.6, 0);
+
+    group.add(head, torso, armL, armR, legL, legR);
+    return group;
+}
+
 function initGame() {
     document.getElementById('login').style.display = 'none';
     scene = new THREE.Scene();
@@ -125,6 +142,7 @@ function initGame() {
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
+    
     scene.add(new THREE.GridHelper(400, 80, 0x00d4ff, 0x111111));
     scene.add(new THREE.AmbientLight(0xffffff, 0.8));
 
@@ -134,7 +152,8 @@ function initGame() {
         let x = Math.random()*360-180, z = Math.random()*360-180;
         if(Math.abs(x)>15 || Math.abs(z)>15) createWall(x, z, Math.random()>0.5?15:3, Math.random()>0.5?3:15);
     }
-    playerGroup = createPlayerMesh(0x00d4ff);
+    
+    playerGroup = createPlayerMesh(0x00d4ff); // Bleu pour toi
     scene.add(playerGroup);
     setupInputs();
     loop();
@@ -146,17 +165,9 @@ function createWall(x, z, w, d) {
     walls.push({ minX: x-w/2-1, maxX: x+w/2+1, minZ: z-d/2-1, maxZ: z+d/2+1 });
 }
 
-function createPlayerMesh(col) {
-    const g = new THREE.Group();
-    const mat = new THREE.MeshStandardMaterial({ color: col, transparent: true });
-    const b = new THREE.Mesh(new THREE.ConeGeometry(0.8, 2, 8), mat); b.position.y = 1;
-    const h = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), mat); h.position.y = 2.2;
-    g.add(b, h); return g;
-}
-
 function updateRemote(d) {
     if(!otherPlayers[d.o]) {
-        otherPlayers[d.o] = { mesh: createPlayerMesh(0xff0055), score: 0 };
+        otherPlayers[d.o] = { mesh: createPlayerMesh(0xff0055), score: 0 }; // Rouge pour les ennemis
         scene.add(otherPlayers[d.o].mesh);
     }
     const p = otherPlayers[d.o];
@@ -168,8 +179,7 @@ function updateRemote(d) {
 
 function loop() {
     requestAnimationFrame(loop);
-    const now = Date.now();
-    const dt = 0.016;
+    const now = Date.now(), dt = 0.016;
 
     const move = new THREE.Vector3();
     if(keysDown['KeyW'] || mobileMove.y < -0.3) move.add(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
@@ -181,7 +191,15 @@ function loop() {
         const s = move.normalize().multiplyScalar(35 * dt);
         if(!checkWall(playerGroup.position.x + s.x, playerGroup.position.z)) playerGroup.position.x += s.x;
         if(!checkWall(playerGroup.position.x, playerGroup.position.z + s.z)) playerGroup.position.z += s.z;
+        
+        // Petite animation de marche simple (oscillation des bras)
+        playerGroup.children[2].rotation.x = Math.sin(now * 0.01) * 0.5; // Bras Gauche
+        playerGroup.children[3].rotation.x = -Math.sin(now * 0.01) * 0.5; // Bras Droit
+    } else {
+        playerGroup.children[2].rotation.x = 0;
+        playerGroup.children[3].rotation.x = 0;
     }
+    
     playerGroup.rotation.y = yaw;
 
     if(now - lastSync > 100) {
@@ -227,7 +245,7 @@ function shoot() {
     lastShoot = now;
     for(let i=0; i<w.count; i++) {
         const ay = yaw + (Math.random()-0.5)*w.spread;
-        const d = { t:'f', o:myID, x:playerGroup.position.x, y:1.5, z:playerGroup.position.z, dx:Math.sin(ay), dz:Math.cos(ay), spd:w.speed, col:w.color, dmg:w.dmg };
+        const d = { t:'f', o:myID, x:playerGroup.position.x, y:1.8, z:playerGroup.position.z, dx:Math.sin(ay), dz:Math.cos(ay), spd:w.speed, col:w.color, dmg:w.dmg };
         channel.publish('p', d); createBullet(d);
     }
 }
@@ -302,3 +320,4 @@ function updateWUI() {
 </script>
 </body>
 </html>
+
