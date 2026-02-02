@@ -6,7 +6,8 @@
     <title>Neon Strike - Ghost Ops | Jeu de Tir Multijoueur</title>
     
     <meta name="description" content="Neon Strike: Ghost Ops. FPS multijoueur néon avec mini-map, arsenal et invisibilité. Gratuit sur navigateur.">
-    <meta name="google-site-verification" content="COLLE_TON_CODE_ICI" />
+    <meta name="google-site-verification" content="TON_CODE_ICI" />
+    
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎯</text></svg>">
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -83,7 +84,7 @@
 </div>
 
 <script>
-// --- CONFIG ---
+// --- CONFIGURATION ---
 const KEYS = ['hoXqWQ.xS6MJA:4jw_S7dp30pIrB7Sm3tCM6S4WQa57PAqkPdp-WN-Ros', 'VxkiKg.ll3U8g:y10rnnVr2hatHn4iYPs6FGt_Ei3V1WkmoJoZIyEcwCo'];
 let currentKeyIndex = 0;
 const WEAPONS = {
@@ -93,8 +94,10 @@ const WEAPONS = {
 };
 
 let scene, camera, renderer, playerGroup, yaw = 0;
-let ably, channel, myID, otherPlayers = {}, bullets = [], walls = [], keys = {};
-let hp = 100, score = 0, currentWeapon = 1, lastShoot = 0;
+let ably, channel, myID, otherPlayers = {}, bullets = [], walls = [], keysDown = {};
+let hp = 100, score = 0, currentWeapon = 1;
+let lastShoot = 0; // Temps du dernier tir
+let lastSync = 0;  // Temps du dernier message réseau
 let isInvisible = false, lastInvis = 0;
 let mobileMove = { x: 0, y: 0 };
 
@@ -185,10 +188,7 @@ function respawn() {
     hp = 100; document.getElementById('health-bar').style.width = "100%";
     let x, z; do { x = Math.random()*300-150; z = Math.random()*300-150; } while(checkWall(x,z));
     playerGroup.position.set(x,0,z);
-    msg("REPLOIEMENT...");
 }
-
-function msg(t) { const l = document.getElementById('msgLog'); l.textContent = t; setTimeout(()=>l.textContent="", 2000); }
 
 function loop() {
     requestAnimationFrame(loop);
@@ -197,10 +197,10 @@ function loop() {
 
     // MOUVEMENT
     const move = new THREE.Vector3();
-    if(keys['KeyW'] || mobileMove.y < -0.3) move.add(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
-    if(keys['KeyS'] || mobileMove.y > 0.3) move.sub(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
-    if(keys['KeyA'] || mobileMove.x < -0.3) move.add(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
-    if(keys['KeyD'] || mobileMove.x > 0.3) move.sub(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
+    if(keysDown['KeyW'] || mobileMove.y < -0.3) move.add(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
+    if(keysDown['KeyS'] || mobileMove.y > 0.3) move.sub(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
+    if(keysDown['KeyA'] || mobileMove.x < -0.3) move.add(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
+    if(keysDown['KeyD'] || mobileMove.x > 0.3) move.sub(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
 
     if(move.length() > 0) {
         const s = move.normalize().multiplyScalar(35 * dt);
@@ -208,6 +208,12 @@ function loop() {
         if(!checkWall(playerGroup.position.x, playerGroup.position.z + s.z)) playerGroup.position.z += s.z;
     }
     playerGroup.rotation.y = yaw;
+
+    // SYNC RÉSEAU (Séparé du tir)
+    if(now - lastSync > 100) {
+        channel.publish('p', { t:'m', o:myID, x:playerGroup.position.x, z:playerGroup.position.z, y:yaw, i:isInvisible });
+        lastSync = now;
+    }
 
     // BALLES
     for(let i=bullets.length-1; i>=0; i--) {
@@ -222,12 +228,6 @@ function loop() {
             }
         }
         if(bullets[i] && now > b.death) { scene.remove(b.mesh); bullets.splice(i,1); }
-    }
-
-    // SYNC
-    if(now - lastShoot > 100) {
-        channel.publish('p', { t:'m', o:myID, x:playerGroup.position.x, z:playerGroup.position.z, y:yaw, i:isInvisible });
-        lastShoot = now;
     }
 
     camera.position.set(playerGroup.position.x - Math.sin(yaw)*15, 10, playerGroup.position.z - Math.cos(yaw)*15);
@@ -255,12 +255,16 @@ function updateMinimap() {
 }
 
 function shoot() {
+    const now = Date.now();
     const w = WEAPONS[currentWeapon];
-    if(Date.now() - lastShoot < w.delay || isInvisible) return;
+    if(now - lastShoot < w.delay || isInvisible) return;
+    
+    lastShoot = now;
     for(let i=0; i<w.count; i++) {
         const ay = yaw + (Math.random()-0.5)*w.spread;
         const d = { t:'f', o:myID, x:playerGroup.position.x, y:1.5, z:playerGroup.position.z, dx:Math.sin(ay), dz:Math.cos(ay), spd:w.speed, col:w.color, dmg:w.dmg };
-        channel.publish('p', d); createBullet(d);
+        channel.publish('p', d); 
+        createBullet(d);
     }
 }
 
@@ -289,13 +293,13 @@ function setupInputs() {
         document.getElementById('m-next').onclick = () => { currentWeapon = (currentWeapon%3)+1; updateWUI(); };
     } else {
         window.onkeydown = (e) => {
-            keys[e.code] = true;
+            keysDown[e.code] = true;
             if(e.code==='Digit1') {currentWeapon=1; updateWUI();}
             if(e.code==='Digit2') {currentWeapon=2; updateWUI();}
             if(e.code==='Digit3') {currentWeapon=3; updateWUI();}
             if(e.code==='KeyE') toggleInvis();
         };
-        window.onkeyup = (e) => keys[e.code] = false;
+        window.onkeyup = (e) => keysDown[e.code] = false;
         document.onmousemove = (e) => { if(document.pointerLockElement) yaw -= e.movementX * 0.003; };
         window.onmousedown = () => { if(document.pointerLockElement) shoot(); else renderer.domElement.requestPointerLock(); };
     }
@@ -315,3 +319,4 @@ function updateWUI() {
 </script>
 </body>
 </html>
+
