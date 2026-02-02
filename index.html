@@ -42,20 +42,46 @@ let ably, channel, myID, otherPlayers = {}, bullets = [], walls = [], teleporter
 let hp = 100, score = 0, lastShoot = 0, lastSync = 0, lastTeleport = 0;
 
 async function connectToCloud() {
+    const loginBtn = document.querySelector('#login button');
+    const loginDiv = document.getElementById('login');
     myID = "Ghost-" + Math.random().toString(36).substr(2, 3).toUpperCase();
+    
+    loginBtn.textContent = "CONNEXION EN COURS...";
+    loginBtn.disabled = true;
+
     try {
-        ably = new Ably.Realtime({ key: KEYS[0], clientId: myID });
-        channel = ably.channels.get('neon-stages');
-        channel.subscribe('p', (m) => {
-            if (m.data.o === myID) return;
-            if (m.data.t === 'm') updateRemote(m.data);
-            if (m.data.t === 'f') createBullet(m.data);
-            if (m.data.t === 'h' && m.data.tgt === myID) takeDamage(m.data.dmg);
+        // Tentative de connexion avec log d'erreurs précis
+        ably = new Ably.Realtime({ 
+            key: KEYS[0], 
+            clientId: myID,
+            recover: false // Évite les boucles de reconnexion infinies
         });
-        await channel.presence.enter();
-        initGame();
-        document.getElementById('login').style.display = 'none';
-    } catch (e) { alert("Erreur connexion"); }
+
+        // Écouteur d'état pour savoir ce qui bloque
+        ably.connection.on('failed', (err) => {
+            alert("Échec critique : " + err.message);
+            loginBtn.textContent = "RÉESSAYER";
+            loginBtn.disabled = false;
+        });
+
+        ably.connection.on('connected', async () => {
+            channel = ably.channels.get('neon-stages');
+            channel.subscribe('p', (m) => {
+                if (m.data.o === myID) return;
+                if (m.data.t === 'm') updateRemote(m.data);
+                if (m.data.t === 'f') createBullet(m.data);
+                if (m.data.t === 'h' && m.data.tgt === myID) takeDamage(m.data.dmg);
+            });
+            await channel.presence.enter();
+            initGame();
+            loginDiv.style.display = 'none';
+        });
+
+    } catch (e) { 
+        alert("Erreur d'initialisation : " + e.message); 
+        loginBtn.textContent = "ERREUR";
+        loginBtn.disabled = false;
+    }
 }
 
 function createPlayerMesh(col) {
@@ -241,5 +267,6 @@ function setupInputs() {
 </script>
 </body>
 </html>
+
 
 
