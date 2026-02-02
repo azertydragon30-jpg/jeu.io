@@ -4,27 +4,19 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Neon Strike - Artifacts & Bots</title>
-    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
-
     <style>
         html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: #fff; font-family: 'Courier New', monospace; user-select: none; touch-action: none; }
         canvas { display: block; }
-        
-        /* UI */
         #ui { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.8); padding: 12px; border: 2px solid #00d4ff; border-radius: 8px; z-index: 10; pointer-events: none; }
-        #health-bar { width: 100%; height: 10px; background: #ff0055; transition: width 0.3s; margin-top: 5px; border: 1px solid #fff; }
-        
-        /* SHOP */
+        #health-bar-container { width: 150px; height: 10px; background: #333; border: 1px solid #fff; margin-top: 5px; }
+        #health-bar { width: 100%; height: 100%; background: #ff0055; transition: width 0.3s; }
         #shop { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(10, 10, 20, 0.95); border: 3px solid #ffeb3b; padding: 20px; border-radius: 15px; display: none; z-index: 200; text-align: center; min-width: 300px; }
         .shop-item { background: rgba(255,255,255,0.1); margin: 10px 0; padding: 15px; border-radius: 8px; border: 1px solid #444; cursor: pointer; }
         .shop-item:hover { background: rgba(255, 235, 59, 0.2); }
         .shop-item.locked { opacity: 0.5; cursor: not-allowed; }
-
-        /* NOTIFICATIONS */
-        #notif { position: fixed; top: 80px; left: 50%; transform: translateX(-50%); color: #ffeb3b; font-weight: bold; z-index: 100; font-size: 20px; text-shadow: 0 0 10px #ffeb3b; }
-
+        #notif { position: fixed; top: 80px; left: 50%; transform: translateX(-50%); color: #ffeb3b; font-weight: bold; z-index: 100; font-size: 20px; text-shadow: 0 0 10px #ffeb3b; text-align: center; }
         #mobile-controls { display: none; }
         @media (pointer: coarse) {
             #mobile-controls { display: block; position: fixed; inset: 0; pointer-events: none; z-index: 50; }
@@ -39,37 +31,36 @@
 
 <div id="login" style="position:fixed; inset:0; background:#000; display:flex; align-items:center; justify-content:center; z-index:1000;">
     <div style="text-align:center; border:2px solid #00d4ff; padding:40px; border-radius:20px;">
-        <h1 style="color:#00d4ff">NEON STRIKE : OPS</h1>
-        <button onclick="connectToCloud()" style="padding:15px 40px; background:#00d4ff; border:none; font-weight:bold; cursor:pointer;">ENTRER DANS L'ARÈNE</button>
+        <h1 style="color:#00d4ff">NEON STRIKE : ARTEFACTS</h1>
+        <button onclick="connectToCloud()" style="padding:15px 40px; background:#00d4ff; border:none; font-weight:bold; cursor:pointer; border-radius:5px;">DÉPLOIEMENT</button>
     </div>
 </div>
 
 <div id="notif"></div>
 
 <div id="shop">
-    <h2 style="color:#ffeb3b">BOUTIQUE D'ARTEFACTS</h2>
-    <p>Points disponibles : <span id="shop-points">0</span></p>
+    <h2 style="color:#ffeb3b">BOUTIQUE</h2>
+    <p>Points : <span id="shop-points">0</span> | Kills : <span id="shop-kills">0</span></p>
     <div class="shop-item" onclick="buyArtifact('staff')">
-        <strong>Bâton de Vie (50 pts)</strong><br>
-        <small>Ressuscite sur place à la prochaine mort</small>
+        <strong>Bâton de Vie (50 pts)</strong><br><small>Ressuscite sur place</small>
     </div>
     <div id="bot-item" class="shop-item locked" onclick="buyArtifact('bot')">
-        <strong>Invocateur de Drone (5 Kills requis)</strong><br>
-        <small>Invoque un bot chasseur (0 pts)</small>
+        <strong>Drone de Combat (5 Kills)</strong><br><small>Invoque un Bot allié</small>
     </div>
-    <button onclick="toggleShop()" style="margin-top:10px;">FERMER (B)</button>
+    <button onclick="toggleShop()" style="margin-top:10px; padding:10px; width:100%; cursor:pointer;">RETOUR (B)</button>
 </div>
 
 <div id="ui">
     <div>SCORE: <span id="myScore">0</span> | KILLS: <span id="myKills">0</span></div>
-    <div id="health-bar"></div>
-    <div style="margin-top:10px; font-size:12px; color:#aaa;">[B] BOUTIQUE | [E] INVISIBLE</div>
+    <div id="health-bar-container"><div id="health-bar"></div></div>
+    <div style="margin-top:10px; font-size:11px; color:#00d4ff;">[B] SHOP | [E] INVISIBLE | [CLIC] FEU</div>
 </div>
 
 <div id="mobile-controls">
     <div id="joystick-base"><div id="joystick-stick"></div></div>
     <div id="mobile-btns">
         <button class="m-btn" onclick="toggleShop()" style="background:#ffeb3b; color:#000;">SHOP</button>
+        <button class="m-btn" onclick="toggleInvis()">👻</button>
         <button class="m-btn" id="m-shoot" style="background:rgba(255,0,85,0.5); width:70px; height:70px;">FEU</button>
     </div>
 </div>
@@ -78,44 +69,42 @@
 const KEYS = ['hoXqWQ.xS6MJA:4jw_S7dp30pIrB7Sm3tCM6S4WQa57PAqkPdp-WN-Ros'];
 let scene, camera, renderer, playerGroup, yaw = 0;
 let ably, channel, myID, otherPlayers = {}, bullets = [], walls = [], bots = [], keysDown = {};
-let hp = 100, score = 0, kills = 0, currentWeapon = 1;
-let hasStaff = false, shopOpen = false;
-let lastShoot = 0, lastSync = 0, isInvisible = false, mobileMove = {x:0, y:0};
+let hp = 100, score = 0, kills = 0, lastShoot = 0, lastSync = 0;
+let isInvisible = false, lastInvis = 0, hasStaff = false, shopOpen = false;
+let mobileMove = {x:0, y:0};
 
 async function connectToCloud() {
-    myID = "Ghost-" + Math.random().toString(36).substr(2,3).toUpperCase();
+    myID = "G-" + Math.random().toString(36).substr(2, 3).toUpperCase();
     try {
         ably = new Ably.Realtime({ key: KEYS[0], clientId: myID });
-        channel = ably.channels.get('neon-v11');
+        channel = ably.channels.get('neon-v12');
         channel.subscribe('p', (m) => {
             if (m.data.o === myID) return;
             if (m.data.t === 'm') updateRemote(m.data);
             else if (m.data.t === 'f') createBullet(m.data);
             else if (m.data.t === 'h' && m.data.tgt === myID) takeDamage(m.data.dmg, m.data.o);
-            else if (m.data.t === 'k' && m.data.victim === myID) { /* Mort confirmée */ }
+            else if (m.data.t === 'k' && m.data.killer === myID) {
+                kills++; score += 50;
+                showNotif("KILL ! +50 pts");
+                updateUI();
+            }
         });
         await channel.presence.enter();
         initGame();
         document.getElementById('login').style.display = 'none';
-    } catch (e) { alert("Erreur connexion"); }
+    } catch (e) { alert("Erreur de connexion"); }
 }
 
 function createPlayerMesh(col, isBot = false) {
     const group = new THREE.Group();
     const mat = new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.4, transparent: true });
-    
     const head = new THREE.Mesh(new THREE.BoxGeometry(0.5,0.5,0.5), mat); head.position.y = 2.6;
     const torso = new THREE.Mesh(new THREE.BoxGeometry(0.7,1.1,0.4), mat); torso.position.y = 1.8;
     const armL = new THREE.Mesh(new THREE.BoxGeometry(0.2,0.9,0.2), mat); armL.position.set(-0.5,1.8,0);
     const armR = new THREE.Mesh(new THREE.BoxGeometry(0.2,0.9,0.2), mat); armR.position.set(0.5,1.8,0);
     const legL = new THREE.Mesh(new THREE.BoxGeometry(0.25,1,0.25), mat); legL.position.set(-0.2,0.6,0);
     const legR = new THREE.Mesh(new THREE.BoxGeometry(0.25,1,0.25), mat); legR.position.set(0.2,0.6,0);
-    
-    if(isBot) { // Look différent pour le bot
-        const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.5), mat);
-        antenna.position.y = 3; head.add(antenna);
-    }
-
+    if(isBot) { const ant = new THREE.Mesh(new THREE.BoxGeometry(0.1,0.6,0.1), mat); ant.position.y = 3.1; group.add(ant); }
     group.add(head, torso, armL, armR, legL, legR);
     return group;
 }
@@ -127,16 +116,13 @@ function initGame() {
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
-    
     scene.add(new THREE.GridHelper(400, 80, 0x00d4ff, 0x111111));
     scene.add(new THREE.AmbientLight(0xffffff, 0.8));
 
-    // Murs
     for(let i=0; i<30; i++) {
         let x = Math.random()*300-150, z = Math.random()*300-150;
         if(Math.abs(x)>20 || Math.abs(z)>20) createWall(x, z, 10, 2);
     }
-    
     playerGroup = createPlayerMesh(0x00d4ff);
     scene.add(playerGroup);
     setupInputs();
@@ -149,40 +135,14 @@ function createWall(x, z, w, d) {
     walls.push({ minX: x-w/2-1, maxX: x+w/2+1, minZ: z-d/2-1, maxZ: z+d/2+1 });
 }
 
-function toggleShop() {
-    shopOpen = !shopOpen;
-    document.getElementById('shop').style.display = shopOpen ? 'block' : 'none';
-    document.getElementById('shop-points').textContent = score;
-    document.getElementById('bot-item').className = kills >= 5 ? 'shop-item' : 'shop-item locked';
-    if(!shopOpen) renderer.domElement.requestPointerLock();
-}
-
-function buyArtifact(type) {
-    if(type === 'staff' && score >= 50 && !hasStaff) {
-        score -= 50; hasStaff = true;
-        showNotif("BÂTON DE RÉSURRECTION ACQUIS !");
-    } else if(type === 'bot' && kills >= 5) {
-        spawnBot();
-        kills -= 5;
-        showNotif("DRONE DE COMBAT DÉPLOYÉ !");
+function updateRemote(d) {
+    if(!otherPlayers[d.o]) {
+        otherPlayers[d.o] = { mesh: createPlayerMesh(0xff0055), score: 0 };
+        scene.add(otherPlayers[d.o].mesh);
     }
-    toggleShop();
-}
-
-function spawnBot() {
-    const bot = {
-        mesh: createPlayerMesh(0xffeb3b, true),
-        lastShoot: 0
-    };
-    bot.mesh.position.set(playerGroup.position.x, 0, playerGroup.position.z);
-    scene.add(bot.mesh);
-    bots.push(bot);
-}
-
-function showNotif(txt) {
-    const n = document.getElementById('notif');
-    n.textContent = txt;
-    setTimeout(() => n.textContent = "", 3000);
+    otherPlayers[d.o].mesh.position.set(d.x, 0, d.z);
+    otherPlayers[d.o].mesh.rotation.y = d.y;
+    otherPlayers[d.o].mesh.children.forEach(c => c.material.opacity = d.i ? 0.1 : 1);
 }
 
 function takeDamage(dmg, attackerID) {
@@ -193,32 +153,58 @@ function takeDamage(dmg, attackerID) {
             hp = 100; hasStaff = false;
             showNotif("RÉSURRECTION !");
         } else {
-            showNotif("VOUS AVEZ ÉTÉ ÉLIMINÉ");
-            hp = 100; playerGroup.position.set(Math.random()*40-20, 0, Math.random()*40-20);
-            channel.publish('p', { t: 'k', victim: myID, killer: attackerID });
+            showNotif("ÉLIMINÉ");
+            hp = 100;
+            playerGroup.position.set(Math.random()*60-30, 0, Math.random()*60-30);
+            channel.publish('p', { t: 'k', killer: attackerID, victim: myID });
         }
     }
 }
 
-function updateRemote(d) {
-    if(!otherPlayers[d.o]) {
-        otherPlayers[d.o] = { mesh: createPlayerMesh(0xff0055), score: 0 };
-        scene.add(otherPlayers[d.o].mesh);
+function toggleInvis() {
+    const now = Date.now();
+    if(now - lastInvis < 15000) return showNotif("Invisible en recharge...");
+    isInvisible = true; lastInvis = now;
+    playerGroup.children.forEach(c => c.material.opacity = 0.2);
+    showNotif("INVISIBLE ACTIVÉ !");
+    setTimeout(() => { 
+        isInvisible = false; 
+        playerGroup.children.forEach(c => c.material.opacity = 1); 
+    }, 5000);
+}
+
+function toggleShop() {
+    shopOpen = !shopOpen;
+    document.getElementById('shop').style.display = shopOpen ? 'block' : 'none';
+    document.getElementById('shop-points').textContent = score;
+    document.getElementById('shop-kills').textContent = kills;
+    document.getElementById('bot-item').className = kills >= 5 ? 'shop-item' : 'shop-item locked';
+    if(!shopOpen) renderer.domElement.requestPointerLock();
+}
+
+function buyArtifact(type) {
+    if(type === 'staff' && score >= 50) {
+        score -= 50; hasStaff = true; showNotif("BÂTON ÉQUIPÉ");
+    } else if(type === 'bot' && kills >= 5) {
+        kills -= 5; spawnBot(); showNotif("BOT INVOQUÉ");
     }
-    otherPlayers[d.o].mesh.position.set(d.x, 0, d.z);
-    otherPlayers[d.o].mesh.rotation.y = d.y;
+    toggleShop(); updateUI();
+}
+
+function spawnBot() {
+    const bot = { mesh: createPlayerMesh(0xffeb3b, true), lastShoot: 0 };
+    bot.mesh.position.copy(playerGroup.position);
+    scene.add(bot.mesh); bots.push(bot);
 }
 
 function loop() {
     requestAnimationFrame(loop);
     const now = Date.now(), dt = 0.016;
-
-    // Déplacement
     const move = new THREE.Vector3();
-    if(keysDown['KeyW']) move.add(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
-    if(keysDown['KeyS']) move.sub(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
-    if(keysDown['KeyA']) move.add(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
-    if(keysDown['KeyD']) move.sub(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
+    if(keysDown['KeyW'] || mobileMove.y < -0.3) move.add(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
+    if(keysDown['KeyS'] || mobileMove.y > 0.3) move.sub(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
+    if(keysDown['KeyA'] || mobileMove.x < -0.3) move.add(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
+    if(keysDown['KeyD'] || mobileMove.x > 0.3) move.sub(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
 
     if(move.length() > 0) {
         const s = move.normalize().multiplyScalar(35 * dt);
@@ -227,23 +213,29 @@ function loop() {
     }
     playerGroup.rotation.y = yaw;
 
-    // IA des Bots
+    // IA Bot
     bots.forEach(bot => {
-        let closest = null, minDist = 100;
+        let closest = null, minDist = 80;
         for(let id in otherPlayers) {
-            let d = bot.mesh.position.distanceTo(otherPlayers[id].mesh.position);
-            if(d < minDist) { minDist = d; closest = otherPlayers[id].mesh; }
+            let dist = bot.mesh.position.distanceTo(otherPlayers[id].mesh.position);
+            if(dist < minDist) { minDist = dist; closest = otherPlayers[id].mesh; }
         }
         if(closest) {
             bot.mesh.lookAt(closest.position);
             bot.mesh.translateZ(15 * dt);
             if(now - bot.lastShoot > 1000) {
                 const dir = new THREE.Vector3().subVectors(closest.position, bot.mesh.position).normalize();
-                createBullet({ x: bot.mesh.position.x, y: 1.8, z: bot.mesh.position.z, dx: dir.x, dz: dir.z, col: 0xffeb3b, spd: 80, dmg: 10, o: 'bot' });
+                createBullet({ x:bot.mesh.position.x, y:1.8, z:bot.mesh.position.z, dx:dir.x, dz:dir.z, col:0xffeb3b, spd:80, dmg:10, o:'bot' });
                 bot.lastShoot = now;
             }
         }
     });
+
+    // Sync
+    if(now - lastSync > 100) {
+        channel.publish('p', { t:'m', o:myID, x:playerGroup.position.x, z:playerGroup.position.z, y:yaw, i:isInvisible });
+        lastSync = now;
+    }
 
     // Bullets
     for(let i=bullets.length-1; i>=0; i--) {
@@ -252,24 +244,23 @@ function loop() {
             for(let id in otherPlayers) {
                 if(b.mesh.position.distanceTo(otherPlayers[id].mesh.position) < 2) {
                     channel.publish('p', { t:'h', o:myID, tgt:id, dmg:b.dmg });
-                    if(b.o === myID) score += 5;
+                    if(b.o === myID) { score += 5; updateUI(); }
                     scene.remove(b.mesh); bullets.splice(i,1); break;
                 }
             }
         }
-        if(bullets[i] && now > b.death) { scene.remove(b.mesh); bullets.splice(i,1); }
-    }
-
-    if(now - lastSync > 100) {
-        channel.publish('p', { t:'m', o:myID, x:playerGroup.position.x, z:playerGroup.position.z, y:yaw, s:score });
-        lastSync = now;
-        document.getElementById('myScore').textContent = score;
-        document.getElementById('myKills').textContent = kills;
+        if(bullets[i] && (now > b.death || checkWall(b.mesh.position.x, b.mesh.position.z))) { scene.remove(b.mesh); bullets.splice(i,1); }
     }
 
     camera.position.set(playerGroup.position.x - Math.sin(yaw)*15, 12, playerGroup.position.z - Math.cos(yaw)*15);
     camera.lookAt(playerGroup.position);
     renderer.render(scene, camera);
+}
+
+function shoot() {
+    if(Date.now() - lastShoot < 300 || isInvisible) return;
+    lastShoot = Date.now();
+    createBullet({ x: playerGroup.position.x, y: 1.8, z: playerGroup.position.z, dx: Math.sin(yaw), dz: Math.cos(yaw), col: 0x00ff00, spd: 120, dmg: 20, o: myID });
 }
 
 function createBullet(d) {
@@ -278,25 +269,23 @@ function createBullet(d) {
     bullets.push({ mesh:m, dir:new THREE.Vector3(d.dx,0,d.dz), speed:d.spd, dmg:d.dmg, o:d.o, death:Date.now()+2000 });
 }
 
+function updateUI() {
+    document.getElementById('myScore').textContent = score;
+    document.getElementById('myKills').textContent = kills;
+}
+function showNotif(txt) { const n = document.getElementById('notif'); n.textContent = txt; setTimeout(()=>n.textContent="", 3000); }
 function checkWall(x,z) { for(let w of walls) if(x>w.minX && x<w.maxX && z>w.minZ && z<w.maxZ) return true; return false; }
 
 function setupInputs() {
     window.onkeydown = (e) => { 
         keysDown[e.code] = true; 
         if(e.code === 'KeyB') toggleShop(); 
+        if(e.code === 'KeyE') toggleInvis();
     };
     window.onkeyup = (e) => keysDown[e.code] = false;
     document.onmousemove = (e) => { if(document.pointerLockElement) yaw -= e.movementX * 0.003; };
-    window.onmousedown = () => { if(!shopOpen) renderer.domElement.requestPointerLock(); shoot(); };
-}
-
-function shoot() {
-    if(Date.now() - lastShoot < 300) return;
-    lastShoot = Date.now();
-    createBullet({ x: playerGroup.position.x, y: 1.8, z: playerGroup.position.z, dx: Math.sin(yaw), dz: Math.cos(yaw), col: 0x00ff00, spd: 120, dmg: 20, o: myID });
+    window.onmousedown = () => { if(!shopOpen) { renderer.domElement.requestPointerLock(); shoot(); } };
 }
 </script>
 </body>
 </html>
-
-
