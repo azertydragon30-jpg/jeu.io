@@ -17,23 +17,21 @@
         html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: #fff; font-family: 'Courier New', monospace; user-select: none; touch-action: none; }
         canvas { display: block; }
 
-        /* UI GÉNÉRALE */
         #ui { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.7); padding: 10px; border: 2px solid #00d4ff; border-radius: 8px; pointer-events: none; z-index: 10; font-size: 14px; }
         #health-container { width: 150px; height: 10px; background: #333; border: 1px solid #fff; margin-top: 5px; }
         #health-bar { width: 100%; height: 100%; background: #ff0055; transition: width 0.3s; }
+        #myScore { color: #00ff00; font-weight: bold; transition: all 0.2s; }
+
         #weapon-ui { margin-top: 8px; color: #ffeb3b; font-weight: bold; }
         .active-w { color: #00ff00; text-shadow: 0 0 5px #00ff00; }
 
-        /* MINI-MAP */
         #minimap-container { position: absolute; top: 10px; right: 10px; width: 120px; height: 120px; background: rgba(0,20,30,0.8); border: 2px solid #00d4ff; border-radius: 50%; overflow: hidden; z-index: 10; }
         #minimap { width: 100%; height: 100%; }
 
-        /* ÉCRAN D'ACCUEIL */
         #login { position: fixed; inset: 0; background: #000; display: flex; align-items: center; justify-content:center; z-index: 100; }
         .box { background: #111; padding: 30px; border: 3px solid #00d4ff; border-radius: 15px; text-align: center; }
         button { padding: 12px 30px; cursor: pointer; background: #00d4ff; border: none; border-radius: 5px; font-weight: bold; text-transform: uppercase; }
 
-        /* CONTRÔLES MOBILES */
         #mobile-controls { display: none; }
         @media (pointer: coarse) {
             #mobile-controls { display: block; position: fixed; inset: 0; pointer-events: none; z-index: 50; }
@@ -84,7 +82,6 @@
 </div>
 
 <script>
-// --- CONFIGURATION ---
 const KEYS = ['hoXqWQ.xS6MJA:4jw_S7dp30pIrB7Sm3tCM6S4WQa57PAqkPdp-WN-Ros', 'VxkiKg.ll3U8g:y10rnnVr2hatHn4iYPs6FGt_Ei3V1WkmoJoZIyEcwCo'];
 let currentKeyIndex = 0;
 const WEAPONS = {
@@ -96,8 +93,7 @@ const WEAPONS = {
 let scene, camera, renderer, playerGroup, yaw = 0;
 let ably, channel, myID, otherPlayers = {}, bullets = [], walls = [], keysDown = {};
 let hp = 100, score = 0, currentWeapon = 1;
-let lastShoot = 0; // Temps du dernier tir
-let lastSync = 0;  // Temps du dernier message réseau
+let lastShoot = 0, lastSync = 0;
 let isInvisible = false, lastInvis = 0;
 let mobileMove = { x: 0, y: 0 };
 
@@ -137,7 +133,6 @@ function initGame() {
     scene.add(new THREE.GridHelper(400, 80, 0x00d4ff, 0x111111));
     scene.add(new THREE.AmbientLight(0xffffff, 0.8));
 
-    // MURS
     createWall(0, 200, 400, 4); createWall(0, -200, 400, 4);
     createWall(200, 0, 4, 400); createWall(-200, 0, 4, 400);
     for(let i=0; i<50; i++) {
@@ -195,7 +190,6 @@ function loop() {
     const now = Date.now();
     const dt = 0.016;
 
-    // MOUVEMENT
     const move = new THREE.Vector3();
     if(keysDown['KeyW'] || mobileMove.y < -0.3) move.add(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
     if(keysDown['KeyS'] || mobileMove.y > 0.3) move.sub(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
@@ -209,20 +203,24 @@ function loop() {
     }
     playerGroup.rotation.y = yaw;
 
-    // SYNC RÉSEAU (Séparé du tir)
     if(now - lastSync > 100) {
         channel.publish('p', { t:'m', o:myID, x:playerGroup.position.x, z:playerGroup.position.z, y:yaw, i:isInvisible });
         lastSync = now;
     }
 
-    // BALLES
     for(let i=bullets.length-1; i>=0; i--) {
         const b = bullets[i]; b.mesh.position.addScaledVector(b.dir, b.speed * dt);
         if(checkWall(b.mesh.position.x, b.mesh.position.z)) { scene.remove(b.mesh); bullets.splice(i,1); continue; }
+        
         if(b.o === myID) {
             for(let id in otherPlayers) {
                 if(b.mesh.position.distanceTo(otherPlayers[id].mesh.position) < 2.5) {
                     channel.publish('p', { t:'h', o:myID, tgt:id, dmg:b.dmg });
+                    
+                    // --- MISE À JOUR DU SCORE ---
+                    score += 10;
+                    document.getElementById('myScore').textContent = score;
+                    
                     scene.remove(b.mesh); bullets.splice(i,1); break;
                 }
             }
@@ -232,6 +230,7 @@ function loop() {
 
     camera.position.set(playerGroup.position.x - Math.sin(yaw)*15, 10, playerGroup.position.z - Math.cos(yaw)*15);
     camera.lookAt(playerGroup.position);
+    document.getElementById('playerCount').textContent = Object.keys(otherPlayers).length;
     
     updateMinimap();
     renderer.render(scene, camera);
@@ -258,13 +257,11 @@ function shoot() {
     const now = Date.now();
     const w = WEAPONS[currentWeapon];
     if(now - lastShoot < w.delay || isInvisible) return;
-    
     lastShoot = now;
     for(let i=0; i<w.count; i++) {
         const ay = yaw + (Math.random()-0.5)*w.spread;
         const d = { t:'f', o:myID, x:playerGroup.position.x, y:1.5, z:playerGroup.position.z, dx:Math.sin(ay), dz:Math.cos(ay), spd:w.speed, col:w.color, dmg:w.dmg };
-        channel.publish('p', d); 
-        createBullet(d);
+        channel.publish('p', d); createBullet(d);
     }
 }
 
@@ -287,7 +284,7 @@ function setupInputs() {
             stick.style.transform = `translate(${mobileMove.x*30}px, ${mobileMove.y*30}px)`;
         };
         base.ontouchend = () => { mobileMove = {x:0,y:0}; stick.style.transform = "translate(0,0)"; };
-        window.ontouchmove = (e) => { if(!base.contains(e.target)) yaw -= e.touches[0].clientX * 0.0001; };
+        window.ontouchmove = (e) => { if(!base.contains(e.target)) yaw -= e.touches[0].clientX * 0.001; };
         document.getElementById('m-shoot').onclick = shoot;
         document.getElementById('m-invis').onclick = toggleInvis;
         document.getElementById('m-next').onclick = () => { currentWeapon = (currentWeapon%3)+1; updateWUI(); };
@@ -314,9 +311,11 @@ function toggleInvis() {
 
 function updateWUI() {
     document.querySelectorAll('#weapon-ui span').forEach(s => s.className = '');
-    document.getElementById('w'+currentWeapon).className = 'active-w';
+    const active = document.getElementById('w'+currentWeapon);
+    if(active) active.className = 'active-w';
 }
 </script>
 </body>
 </html>
+
 
