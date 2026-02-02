@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Strike - Multi-Stage</title>
+    <title>Neon Strike - Fixed Vertical</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
@@ -15,15 +15,15 @@
         #login { position: fixed; inset: 0; background: #000; display: flex; align-items: center; justify-content: center; z-index: 100; }
         .box { background: #111; padding: 30px; border: 3px solid #00d4ff; border-radius: 15px; text-align: center; }
         button { padding: 12px 30px; cursor: pointer; background: #00d4ff; border: none; border-radius: 5px; font-weight: bold; text-transform: uppercase; }
-        #notif { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #d400ff; font-weight: bold; font-size: 24px; text-shadow: 0 0 10px #d400ff; pointer-events: none; }
+        #notif { position: fixed; top: 20%; left: 50%; transform: translateX(-50%); color: #d400ff; font-weight: bold; font-size: 24px; text-shadow: 0 0 10px #d400ff; pointer-events: none; text-align: center; }
     </style>
 </head>
 <body>
 
 <div id="login">
     <div class="box">
-        <h1 style="color:#00d4ff">NEON STRIKE : ÉTAGES</h1>
-        <button onclick="connectToCloud()">DÉPLOIEMENT</button>
+        <h1 style="color:#00d4ff">NEON STRIKE</h1>
+        <button id="connectBtn" onclick="connectToCloud()">REJOINDRE</button>
     </div>
 </div>
 
@@ -32,7 +32,7 @@
 <div id="ui">
     <div>SCORE: <span id="myScore">0</span></div>
     <div id="health-bar-container"><div id="health-bar"></div></div>
-    <div style="margin-top:5px; font-size:10px; color:#00d4ff">Trouvez les téléporteurs violets !</div>
+    <div style="margin-top:5px; font-size:10px; color:#00d4ff">Dalles violettes = Téléportation</div>
 </div>
 
 <script>
@@ -42,30 +42,16 @@ let ably, channel, myID, otherPlayers = {}, bullets = [], walls = [], teleporter
 let hp = 100, score = 0, lastShoot = 0, lastSync = 0, lastTeleport = 0;
 
 async function connectToCloud() {
-    const loginBtn = document.querySelector('#login button');
-    const loginDiv = document.getElementById('login');
-    myID = "Ghost-" + Math.random().toString(36).substr(2, 3).toUpperCase();
+    const btn = document.getElementById('connectBtn');
+    btn.textContent = "CONNEXION...";
+    btn.disabled = true;
     
-    loginBtn.textContent = "CONNEXION EN COURS...";
-    loginBtn.disabled = true;
-
+    myID = "P-" + Math.random().toString(36).substr(2, 3).toUpperCase();
+    
     try {
-        // Tentative de connexion avec log d'erreurs précis
-        ably = new Ably.Realtime({ 
-            key: KEYS[0], 
-            clientId: myID,
-            recover: false // Évite les boucles de reconnexion infinies
-        });
-
-        // Écouteur d'état pour savoir ce qui bloque
-        ably.connection.on('failed', (err) => {
-            alert("Échec critique : " + err.message);
-            loginBtn.textContent = "RÉESSAYER";
-            loginBtn.disabled = false;
-        });
-
+        ably = new Ably.Realtime({ key: KEYS[0], clientId: myID });
         ably.connection.on('connected', async () => {
-            channel = ably.channels.get('neon-stages');
+            channel = ably.channels.get('neon-vert-v2');
             channel.subscribe('p', (m) => {
                 if (m.data.o === myID) return;
                 if (m.data.t === 'm') updateRemote(m.data);
@@ -74,27 +60,35 @@ async function connectToCloud() {
             });
             await channel.presence.enter();
             initGame();
-            loginDiv.style.display = 'none';
+            document.getElementById('login').style.display = 'none';
         });
-
     } catch (e) { 
-        alert("Erreur d'initialisation : " + e.message); 
-        loginBtn.textContent = "ERREUR";
-        loginBtn.disabled = false;
+        alert("Erreur Ably : " + e.message); 
+        btn.disabled = false;
+        btn.textContent = "REJOINDRE";
     }
 }
 
+// CORRECTION : Création du mesh sans Object.assign sur la position
 function createPlayerMesh(col) {
     const group = new THREE.Group();
     const mat = new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.3 });
-    group.add(
-        Object.assign(new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), mat), { position: { y: 2.6 } }),
-        Object.assign(new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.2, 0.4), mat), { position: { y: 1.8 } }),
-        Object.assign(new THREE.Mesh(new THREE.BoxGeometry(0.25, 1, 0.25), mat), { position: { x: -0.55, y: 1.8 } }),
-        Object.assign(new THREE.Mesh(new THREE.BoxGeometry(0.25, 1, 0.25), mat), { position: { x: 0.55, y: 1.8 } }),
-        Object.assign(new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.1, 0.3), mat), { position: { x: -0.25, y: 0.6 } }),
-        Object.assign(new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.1, 0.3), mat), { position: { x: 0.25, y: 0.6 } })
-    );
+    
+    const parts = [
+        { g: [0.5, 0.5, 0.5], p: [0, 2.6, 0] }, // tête
+        { g: [0.8, 1.2, 0.4], p: [0, 1.8, 0] }, // torse
+        { g: [0.25, 1, 0.25], p: [-0.55, 1.8, 0] }, // bras L
+        { g: [0.25, 1, 0.25], p: [0.55, 1.8, 0] }, // bras R
+        { g: [0.3, 1.1, 0.3], p: [-0.25, 0.6, 0] }, // jambe L
+        { g: [0.3, 1.1, 0.3], p: [0.25, 0.6, 0] }   // jambe R
+    ];
+
+    parts.forEach(data => {
+        const m = new THREE.Mesh(new THREE.BoxGeometry(...data.g), mat);
+        m.position.set(...data.p);
+        group.add(m);
+    });
+
     return group;
 }
 
@@ -105,11 +99,10 @@ function initGame() {
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
     
-    // Lumières
-    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
-    dirLight.position.set(0, 50, 0);
-    scene.add(dirLight);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+    const light = new THREE.PointLight(0x00d4ff, 1, 100);
+    light.position.set(0, 50, 0);
+    scene.add(light);
 
     buildMap();
 
@@ -121,47 +114,41 @@ function initGame() {
 
 function buildMap() {
     // Sol RDC
-    scene.add(new THREE.GridHelper(400, 80, 0x00d4ff, 0x111111));
+    scene.add(new THREE.GridHelper(400, 40, 0x00d4ff, 0x111111));
     
-    // Sol Étage 1 (Verre)
-    const glassFloor = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshStandardMaterial({ color: 0x00d4ff, transparent: true, opacity: 0.2, side: THREE.DoubleSide }));
-    glassFloor.rotation.x = -Math.PI / 2;
-    glassFloor.position.y = 29.9;
-    scene.add(glassFloor);
+    // Sol Étage 1
+    const glass = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshStandardMaterial({ color: 0x00d4ff, transparent: true, opacity: 0.2, side: THREE.DoubleSide }));
+    glass.rotation.x = -Math.PI / 2;
+    glass.position.y = 29.9;
+    scene.add(glass);
 
-    // Murs RDC (Y=0) et Étage 1 (Y=30)
-    for(let i=0; i<50; i++) {
-        let x = Math.random()*360-180, z = Math.random()*360-180;
-        if(Math.abs(x)>20 || Math.abs(z)>20) {
-            // Mur RDC
-            createWall(x, 0, z, Math.random()>0.5?20:3, Math.random()>0.5?3:20);
-            // Mur Étage (décalé)
-            createWall(x + 50, 30, z - 50, Math.random()>0.5?20:3, Math.random()>0.5?3:20);
+    // Murs (RDC et Étage)
+    for(let i=0; i<40; i++) {
+        let x = Math.random()*300-150, z = Math.random()*300-150;
+        if(Math.abs(x)>15 || Math.abs(z)>15) {
+            createWall(x, 0, z, 10, 2); // RDC
+            createWall(x+20, 30, z+20, 2, 10); // Étage
         }
     }
-    // Murs extérieurs
-    createWall(0,0,200,400,4); createWall(0,0,-200,400,4); createWall(200,0,0,4,400); createWall(-200,0,0,4,400);
-    createWall(0,30,200,400,4); createWall(0,30,-200,400,4); createWall(200,30,0,4,400); createWall(-200,30,0,4,400);
 
-    // Téléporteurs
-    createTeleporter(0, 0, 0, 30); // Centre RDC -> Haut
-    createTeleporter(180, 0, 180, 30); // Coin RDC -> Haut
-    createTeleporter(0, 30, 0, 0); // Centre Haut -> Bas
-    createTeleporter(-180, 30, -180, 0); // Coin Haut -> Bas
+    // Téléporteurs (Violets)
+    createTeleporter(0, 0, 0, 30);      // Monter au centre
+    createTeleporter(50, 30, 50, 0);    // Descendre
+    createTeleporter(-50, 30, -50, 0);  // Descendre
 }
 
 function createWall(x, y, z, w, d) {
-    const h = 8;
-    const wall = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ color: 0x00d4ff, emissive: 0x00d4ff, emissiveIntensity: 0.1 }));
-    wall.position.set(x, y + h/2, z); scene.add(wall);
-    walls.push({ minX: x-w/2-1, maxX: x+w/2+1, minZ: z-d/2-1, maxZ: z+d/2+1, minY: y, maxY: y+h });
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(w, 8, d), new THREE.MeshStandardMaterial({ color: 0x00d4ff }));
+    wall.position.set(x, y + 4, z);
+    scene.add(wall);
+    walls.push({ minX: x-w/2-1, maxX: x+w/2+1, minZ: z-d/2-1, maxZ: z+d/2+1, minY: y, maxY: y+8 });
 }
 
 function createTeleporter(x, y, z, targetY) {
-    const pad = new THREE.Mesh(new THREE.CylinderGeometry(3, 3, 0.5, 16), new THREE.MeshStandardMaterial({ color: 0xd400ff, emissive: 0xd400ff, emissiveIntensity: 0.8 }));
-    pad.position.set(x, y + 0.25, z);
+    const pad = new THREE.Mesh(new THREE.CylinderGeometry(3, 3, 0.5, 32), new THREE.MeshStandardMaterial({ color: 0xd400ff, emissive: 0xd400ff }));
+    pad.position.set(x, y + 0.2, z);
     scene.add(pad);
-    teleporters.push({ x:x, y:y, z:z, targetY:targetY, mesh:pad });
+    teleporters.push({ x, y, z, targetY });
 }
 
 function updateRemote(d) {
@@ -173,6 +160,7 @@ function updateRemote(d) {
 function loop() {
     requestAnimationFrame(loop);
     const now = Date.now(), dt = 0.016;
+
     const move = new THREE.Vector3();
     if(keysDown['KeyW']) move.add(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
     if(keysDown['KeyS']) move.sub(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
@@ -180,25 +168,21 @@ function loop() {
     if(keysDown['KeyD']) move.sub(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
 
     if(move.length() > 0) {
-        const s = move.normalize().multiplyScalar(35 * dt);
-        const nextX = playerGroup.position.x + s.x;
-        const nextZ = playerGroup.position.z + s.z;
-        if(!checkWall(nextX, playerGroup.position.y, playerGroup.position.z)) playerGroup.position.x = nextX;
-        if(!checkWall(playerGroup.position.x, playerGroup.position.y, nextZ)) playerGroup.position.z = nextZ;
-        playerGroup.children[2].rotation.x = Math.sin(now*0.01)*0.5; playerGroup.children[3].rotation.x = -Math.sin(now*0.01)*0.5;
+        const s = move.normalize().multiplyScalar(30 * dt);
+        if(!checkWall(playerGroup.position.x + s.x, playerGroup.position.y, playerGroup.position.z)) playerGroup.position.x += s.x;
+        if(!checkWall(playerGroup.position.x, playerGroup.position.y, playerGroup.position.z + s.z)) playerGroup.position.z += s.z;
     }
     playerGroup.rotation.y = yaw;
 
-    // Check Téléporteurs
-    if(now - lastTeleport > 2000) {
-        for(let tp of teleporters) {
-            if(Math.abs(playerGroup.position.y - tp.y) < 2 && playerGroup.position.distanceTo(tp.mesh.position) < 2.5) {
+    // Téléportation
+    if(now - lastTeleport > 1500) {
+        teleporters.forEach(tp => {
+            if(Math.abs(playerGroup.position.y - tp.y) < 2 && playerGroup.position.distanceTo(new THREE.Vector3(tp.x, tp.y, tp.z)) < 3) {
                 playerGroup.position.y = tp.targetY;
                 lastTeleport = now;
-                showNotif("CHANGEMENT D'ÉTAGE !");
-                break;
+                showNotif("TÉLÉPORTATION !");
             }
-        }
+        });
     }
 
     if(now - lastSync > 100) {
@@ -206,54 +190,48 @@ function loop() {
         lastSync = now;
     }
 
+    // Balles
     for(let i=bullets.length-1; i>=0; i--) {
         const b = bullets[i]; b.mesh.position.addScaledVector(b.dir, b.speed * dt);
-        if(checkWall(b.mesh.position.x, b.mesh.position.y, b.mesh.position.z)) { scene.remove(b.mesh); bullets.splice(i,1); continue; }
         if(b.o === myID) {
             for(let id in otherPlayers) {
-                // Vérifier la distance en 3D (y compris la hauteur)
-                if(b.mesh.position.distanceTo(otherPlayers[id].mesh.position) < 3) {
-                    channel.publish('p', { t:'h', o:myID, tgt:id, dmg:20 });
+                if(b.mesh.position.distanceTo(otherPlayers[id].mesh.position) < 2.5) {
+                    channel.publish('p', { t:'h', o:myID, tgt:id, dmg:25 });
                     score += 10; document.getElementById('myScore').textContent = score;
                     scene.remove(b.mesh); bullets.splice(i,1); break;
                 }
             }
         }
-        if(bullets[i] && now > b.death) { scene.remove(b.mesh); bullets.splice(i,1); }
+        if(bullets[i] && (now > b.death || checkWall(b.mesh.position.x, b.mesh.position.y, b.mesh.position.z))) {
+            scene.remove(b.mesh); bullets.splice(i,1);
+        }
     }
-    
-    // Animation des téléporteurs
-    teleporters.forEach(tp => tp.mesh.rotation.y += 0.02);
 
-    camera.position.set(playerGroup.position.x - Math.sin(yaw)*15, playerGroup.position.y + 10, playerGroup.position.z - Math.cos(yaw)*15);
+    camera.position.set(playerGroup.position.x - Math.sin(yaw)*12, playerGroup.position.y + 8, playerGroup.position.z - Math.cos(yaw)*12);
     camera.lookAt(playerGroup.position.x, playerGroup.position.y + 2, playerGroup.position.z);
     renderer.render(scene, camera);
 }
 
 function shoot() {
-    if(Date.now() - lastShoot < 250) return;
+    if(Date.now() - lastShoot < 300) return;
     lastShoot = Date.now();
-    const d = { t:'f', o:myID, x:playerGroup.position.x, y:playerGroup.position.y+1.8, z:playerGroup.position.z, dx:Math.sin(yaw), dy:0, dz:Math.cos(yaw), spd:100, col:0x00ff00 };
+    const d = { t:'f', o:myID, x:playerGroup.position.x, y:playerGroup.position.y+1.8, z:playerGroup.position.z, dx:Math.sin(yaw), dz:Math.cos(yaw), spd:120, col:0x00ff00 };
     channel.publish('p', d); createBullet(d);
 }
 
 function createBullet(d) {
     const m = new THREE.Mesh(new THREE.SphereGeometry(0.3), new THREE.MeshBasicMaterial({ color: d.col }));
     m.position.set(d.x, d.y, d.z); scene.add(m);
-    bullets.push({ mesh:m, dir:new THREE.Vector3(d.dx,d.dy,d.dz), speed:d.spd, o:d.o, death:Date.now()+2000 });
+    bullets.push({ mesh:m, dir:new THREE.Vector3(d.dx,0,d.dz), speed:d.spd, o:d.o, death:Date.now()+1500 });
 }
 
 function takeDamage(dmg) {
     hp -= dmg; document.getElementById('health-bar').style.width = Math.max(0, hp) + "%";
-    if(hp <= 0) { hp = 100; playerGroup.position.set(Math.random()*40-20, 0, Math.random()*40-20); showNotif("ÉLIMINÉ !"); }
+    if(hp <= 0) { hp = 100; playerGroup.position.set(0,0,0); showNotif("RÉAPPARITION"); }
 }
 
-function checkWall(x, y, z) { 
-    for(let w of walls) {
-        // Vérifie si on est à la bonne hauteur (Y) ET dans les limites (X, Z) du mur
-        if(y >= w.minY && y <= w.maxY && x > w.minX && x < w.maxX && z > w.minZ && z < w.maxZ) return true; 
-    }
-    return false; 
+function checkWall(x, y, z) {
+    return walls.some(w => y >= w.minY && y <= w.maxY && x > w.minX && x < w.maxX && z > w.minZ && z < w.maxZ);
 }
 
 function showNotif(t) { const n=document.getElementById('notif'); n.textContent=t; setTimeout(()=>n.textContent="", 2000); }
@@ -267,6 +245,7 @@ function setupInputs() {
 </script>
 </body>
 </html>
+
 
 
 
