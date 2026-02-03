@@ -3,57 +3,60 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Strike - LEGENDARY</title>
+    <title>Neon Strike - ELITE LEGEND</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
-        html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: #fff; font-family: 'Orbitron', sans-serif; user-select: none; }
+        html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: #fff; font-family: 'Segoe UI', sans-serif; user-select: none; }
         #ui { position: absolute; top: 10px; left: 10px; pointer-events: none; width: 100%; }
-        .hud-panel { background: rgba(0,0,0,0.8); padding: 12px; border: 1px solid #00d4ff; margin-bottom: 5px; backdrop-filter: blur(10px); display: inline-block; min-width: 180px; }
-        .bar-bg { width: 100%; height: 8px; background: #222; margin-top: 5px; overflow: hidden; }
-        #hp-bar { width: 100%; height: 100%; background: #ff0055; transition: 0.2s; }
-        #stamina-bar { width: 100%; height: 100%; background: #ffcc00; transition: 0.1s; }
-        #ammo-box { position: fixed; bottom: 20px; right: 20px; font-size: 45px; font-weight: 900; color: #00d4ff; font-style: italic; }
-        #sniper-scope { position: fixed; inset: 0; display: none; border: 2px solid #333; box-shadow: inset 0 0 200px #000, 0 0 0 2000px rgba(0,0,0,0.9); pointer-events: none; z-index: 50; }
-        #sniper-scope::after { content:''; position: absolute; top: 50%; left: 50%; width: 100vw; height: 1px; background: rgba(255,0,0,0.5); transform: translateY(-50%); }
-        #sniper-scope::before { content:''; position: absolute; top: 50%; left: 50%; width: 1px; height: 100vh; background: rgba(255,0,0,0.5); transform: translateX(-50%); }
-        #hit-mark { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); color: #fff; font-size: 30px; opacity: 0; pointer-events: none; }
-        #shield-indicator { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); color: #00d4ff; font-weight: bold; display: none; }
+        .hud-panel { background: rgba(0,0,0,0.7); padding: 12px; border-left: 4px solid #00d4ff; margin-bottom: 5px; backdrop-filter: blur(8px); display: inline-block; min-width: 150px; }
+        .bar-bg { width: 180px; height: 12px; background: #222; margin-top: 5px; transform: skewX(-15deg); overflow: hidden; border: 1px solid #444; }
+        #health-bar { width: 100%; height: 100%; background: linear-gradient(90deg, #ff0055, #ff5500); transition: width 0.2s; }
+        #stamina-bar { width: 100%; height: 100%; background: linear-gradient(90deg, #00d4ff, #00ffaa); transition: width 0.1s; }
+        #ammo-box { position: fixed; bottom: 20px; right: 20px; font-size: 45px; font-weight: 900; color: #00d4ff; text-shadow: 0 0 15px #00d4ff; }
+        
+        #sniper-scope { position: fixed; inset: 0; border-radius: 50%; pointer-events: none; display: none; box-shadow: 0 0 0 1000px #000; border: 2px solid #555; z-index: 10; }
+        #crosshair { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 8px; height: 8px; border: 2px solid #00d4ff; border-radius: 50%; pointer-events: none; }
+        #hit-marker { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(45deg); width: 25px; height: 25px; border: 2px solid #fff; opacity: 0; pointer-events: none; border-left: none; border-top: none; }
+        #hit-marker::after { content:''; position: absolute; width: 25px; height: 2px; background: #fff; transform: rotate(90deg) translate(12px, -13px); }
+
+        #msg { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 24px; font-weight: bold; display: none; text-transform: uppercase; }
         #login { position: fixed; inset: 0; background: #000; display: flex; align-items: center; justify-content: center; z-index: 100; }
-        .box { background: #050505; padding: 50px; border: 2px solid #00d4ff; text-align: center; box-shadow: 0 0 50px #00d4ff; }
-        button { padding: 15px 50px; background: #00d4ff; border: none; font-weight: bold; cursor: pointer; color: #000; }
+        .box { background: #111; padding: 40px; border: 2px solid #00d4ff; text-align: center; border-radius: 15px; box-shadow: 0 0 40px rgba(0, 212, 255, 0.2); }
+        button { padding: 15px 40px; background: #00d4ff; border: none; font-weight: 900; cursor: pointer; color: #000; border-radius: 5px; }
     </style>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;900&display=swap" rel="stylesheet">
 </head>
 <body>
 
-<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">STRIKE</span></h1><button onclick="connectToCloud()">INITIALISER LE SYSTÈME</button></div></div>
+<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">STRIKE</span></h1><p>VERSION ELITE LEGEND</p><button onclick="connectToCloud()">DÉPLOIEMENT</button></div></div>
 
 <div id="ui">
+    <div class="hud-panel"><div style="font-size:20px;">SCORE: <span id="score">0</span></div></div><br>
     <div class="hud-panel">
-        <div>SCORE: <span id="score">0</span></div>
-        <div class="bar-bg"><div id="hp-bar"></div></div>
-        <div class="bar-bg"><div id="stamina-bar"></div></div>
+        <div>SANTÉ</div><div class="bar-bg"><div id="health-bar"></div></div>
+        <div style="margin-top:5px;">STAMINA</div><div class="bar-bg"><div id="stamina-bar"></div></div>
     </div>
 </div>
 
-<div id="ammo-box">30/30</div>
+<div id="ammo-box">30 / 30</div>
+<div id="msg"></div>
+<div id="crosshair"></div>
 <div id="sniper-scope"></div>
-<div id="hit-mark">╳</div>
-<div id="shield-indicator">BOUCLIER ACTIF</div>
+<div id="hit-marker"></div>
 
 <script>
 const KEYS = ['hoXqWQ.xS6MJA:4jw_S7dp30pIrB7Sm3tCM6S4WQa57PAqkPdp-WN-Ros'];
 let scene, camera, renderer, playerGroup, yaw = 0, pitch = 0;
-let ably, channel, myID, otherPlayers = {}, bullets = [], particles = [], walls = [], teleporters = [], grenades = [];
-let keysDown = {}, hp = 100, stamina = 100, ammo = 30, score = 0, lastShoot = 0, lastSync = 0;
-let isSniper = false, isShield = false, shieldCooldown = 0, isReloading = false;
+let ably, channel, myID, otherPlayers = {}, bullets = [], grenades = [], particles = [], walls = [];
+let keysDown = {}, hp = 100, stamina = 100, score = 0, ammo = 30;
+let lastShoot = 0, lastDash = 0, lastGrenade = 0, isShield = false;
+let isReloading = false, isSniper = false;
 
 async function connectToCloud() {
-    myID = "L-GEND-" + Math.floor(Math.random()*999);
+    myID = "Elite-" + Math.floor(Math.random()*999);
     ably = new Ably.Realtime({ key: KEYS[0], clientId: myID });
     ably.connection.on('connected', async () => {
-        channel = ably.channels.get('neon-legend-v1');
+        channel = ably.channels.get('neon-elite-final');
         channel.subscribe('p', handleMessage);
         initGame();
         document.getElementById('login').style.display = 'none';
@@ -65,27 +68,25 @@ function handleMessage(m) {
     const d = m.data;
     if (d.t === 'm') updateRemote(d);
     else if (d.t === 'f') createBullet(d);
+    else if (d.t === 'g') createGrenade(d);
     else if (d.t === 'h' && d.tgt === myID && !isShield) takeDamage(d.dmg, d.o);
-    else if (d.t === 'k') addKillFeed(d.killer, d.victim);
 }
 
 function initGame() {
     scene = new THREE.Scene();
-    camera = new THREE.PerspectiveCamera(85, window.innerWidth/window.innerHeight, 0.1, 2000);
+    scene.fog = new THREE.FogExp2(0x000510, 0.012);
+    camera = new THREE.PerspectiveCamera(80, window.innerWidth/window.innerHeight, 0.1, 1500);
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setClearColor(0x000510);
     document.body.appendChild(renderer.domElement);
 
-    // Ambiance
-    scene.add(new THREE.AmbientLight(0xffffff, 0.2));
-    const sun = new THREE.DirectionalLight(0x00d4ff, 0.5);
-    sun.position.set(50, 100, 50);
-    scene.add(sun);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.3));
+    const sun = new THREE.PointLight(0x00d4ff, 1, 300); sun.position.set(0, 100, 0); scene.add(sun);
 
     buildMap();
     playerGroup = createPlayerMesh(0x00d4ff);
     scene.add(playerGroup);
-
     setupInputs();
     loop();
 }
@@ -93,26 +94,26 @@ function initGame() {
 function createPlayerMesh(col) {
     const g = new THREE.Group();
     const mat = new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.5 });
-    const body = new THREE.Mesh(new THREE.BoxGeometry(1, 2, 0.6), mat);
-    body.position.y = 1;
-    const shieldObj = new THREE.Mesh(new THREE.SphereGeometry(2, 16, 16), new THREE.MeshBasicMaterial({ color: 0x00d4ff, transparent: true, opacity: 0, wireframe: true }));
-    shieldObj.name = "shield";
-    g.add(body, shieldObj);
+    const b = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.8, 0.5), mat); b.position.y = 0.9;
+    const h = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), mat); h.position.y = 2.1;
+    const shield = new THREE.Mesh(new THREE.SphereGeometry(2, 16, 16), new THREE.MeshBasicMaterial({ color: 0x00d4ff, transparent: true, opacity: 0, wireframe: true }));
+    shield.name = "shield";
+    g.add(b, h, shield);
     return g;
 }
 
 function buildMap() {
-    scene.add(new THREE.GridHelper(1000, 50, 0x00d4ff, 0x001122));
-    for(let i=0; i<60; i++) {
-        createWall((Math.random()-0.5)*400, 0, (Math.random()-0.5)*400, 10, 10, 20);
+    scene.add(new THREE.GridHelper(1000, 80, 0x00d4ff, 0x001122));
+    for(let i=0; i<50; i++) {
+        createWall((Math.random()-0.5)*350, 0, (Math.random()-0.5)*350, 12, 12, Math.random()*20+5);
     }
 }
 
 function createWall(x, y, z, w, d, h) {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ color: 0x050505 }));
-    m.position.set(x, y+h/2, z);
-    const e = new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry), new THREE.LineBasicMaterial({ color: 0x00d4ff }));
-    e.position.copy(m.position); scene.add(m, e);
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ color: 0x0a0a15 }));
+    m.position.set(x, y+h/2, z); 
+    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry), new THREE.LineBasicMaterial({ color: 0x00d4ff }));
+    edges.position.copy(m.position); scene.add(m, edges);
     walls.push({ minX:x-w/2, maxX:x+w/2, minZ:z-d/2, maxZ:z+d/2, minY:y, maxY:y+h });
 }
 
@@ -120,29 +121,32 @@ function loop() {
     requestAnimationFrame(loop);
     const now = Date.now(), dt = 0.016;
 
-    // --- REGEN STAMINA ---
-    if(stamina < 100) stamina += 0.2;
+    // --- STAMINA REGEN ---
+    if(stamina < 100) stamina += 0.25;
     document.getElementById('stamina-bar').style.width = stamina + "%";
 
-    // --- SNIPER FIX ---
+    // --- SNIPER LOGIC (NO JUMP CAM) ---
+    const isCrouch = keysDown['ControlLeft'];
     if(keysDown['ShiftLeft']) {
         if(!isSniper) {
             isSniper = true;
-            camera.fov = 15; camera.updateProjectionMatrix();
+            camera.fov = 20; camera.updateProjectionMatrix();
             document.getElementById('sniper-scope').style.display = 'block';
-            playerGroup.children[0].visible = false; // Cacher le corps
         }
+        playerGroup.children[0].visible = false; // Corps invisible pour soi
+        playerGroup.children[1].visible = false; // Tête invisible pour soi
     } else if(isSniper) {
         isSniper = false;
-        camera.fov = 85; camera.updateProjectionMatrix();
+        camera.fov = 80; camera.updateProjectionMatrix();
         document.getElementById('sniper-scope').style.display = 'none';
         playerGroup.children[0].visible = true;
+        playerGroup.children[1].visible = true;
     }
 
-    // --- MOUVEMENT ---
-    let speed = 40;
-    if(keysDown['Space'] && stamina > 30) { speed = 160; stamina -= 2; }
-
+    // --- MOUVEMENT & WALL RUN ---
+    let speed = 38;
+    if(keysDown['Space'] && stamina > 20) { speed = 140; stamina -= 1; }
+    
     const move = new THREE.Vector3();
     if(keysDown['KeyW']) move.add(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
     if(keysDown['KeyS']) move.sub(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
@@ -151,28 +155,21 @@ function loop() {
     
     if(move.length() > 0) {
         const s = move.normalize().multiplyScalar(speed * dt);
-        if(!checkWall(playerGroup.position.x+s.x, playerGroup.position.y, playerGroup.position.z)) playerGroup.position.x += s.x;
-        if(!checkWall(playerGroup.position.x, playerGroup.position.y, playerGroup.position.z+s.z)) playerGroup.position.z += s.z;
+        const nextX = playerGroup.position.x + s.x;
+        const nextZ = playerGroup.position.z + s.z;
+        if(!checkWall(nextX, playerGroup.position.y, playerGroup.position.z)) playerGroup.position.x = nextX;
+        if(!checkWall(playerGroup.position.x, playerGroup.position.y, nextZ)) playerGroup.position.z = nextZ;
     }
+
+    playerGroup.scale.y = isCrouch ? 0.5 : 1.0;
     playerGroup.rotation.y = yaw;
 
-    // --- BOUCLIER ---
-    const shieldVisual = playerGroup.getObjectByName("shield");
-    if(isShield) {
-        shieldVisual.material.opacity = 0.3;
-        shieldVisual.rotation.y += 0.1;
-    } else {
-        shieldVisual.material.opacity = 0;
-    }
-
-    // --- BALLES & COLLISIONS ---
-    for(let i=bullets.length-1; i>=0; i--) {
-        const b = bullets[i];
+    // --- PROJECTILES ---
+    bullets.forEach((b, i) => {
         b.mesh.position.addScaledVector(b.dir, b.speed * dt);
         if(checkWall(b.mesh.position.x, b.mesh.position.y, b.mesh.position.z)) {
-            scene.remove(b.mesh); bullets.splice(i,1); continue;
-        }
-        if(b.o === myID) {
+            scene.remove(b.mesh); bullets.splice(i,1);
+        } else if(b.o === myID) {
             for(let id in otherPlayers) {
                 if(b.mesh.position.distanceTo(otherPlayers[id].mesh.position) < 2) {
                     channel.publish('p', { t:'h', o:myID, tgt:id, dmg:b.dmg });
@@ -180,21 +177,20 @@ function loop() {
                 }
             }
         }
-        if(bullets[i] && now > b.death) { scene.remove(b.mesh); bullets.splice(i,1); }
-    }
+    });
 
     // --- CAMERA ---
     const camDist = isSniper ? 0 : 15;
-    const camHeight = isSniper ? 1.8 : 8;
+    const camHeight = isSniper ? 1.8 : (isCrouch ? 5 : 9);
     camera.position.lerp(new THREE.Vector3(
         playerGroup.position.x - Math.sin(yaw) * camDist,
         playerGroup.position.y + camHeight,
         playerGroup.position.z - Math.cos(yaw) * camDist
-    ), 0.2);
+    ), 0.15);
     camera.lookAt(playerGroup.position.x, playerGroup.position.y + 1.5, playerGroup.position.z);
 
-    if(now - lastSync > 50) {
-        channel.publish('p', { t:'m', o:myID, x:playerGroup.position.x, y:playerGroup.position.y, z:playerGroup.position.z, ry:yaw });
+    if(now - lastSync > 60) {
+        channel.publish('p', { t:'m', o:myID, x:playerGroup.position.x, y:playerGroup.position.y, z:playerGroup.position.z, ry:yaw, s:isShield });
         lastSync = now;
     }
 
@@ -202,55 +198,105 @@ function loop() {
 }
 
 function shoot() {
-    if(isReloading || ammo <= 0) return;
-    ammo--; updateAmmo();
-    const d = { t:'f', o:myID, x:playerGroup.position.x, y:playerGroup.position.y+1.8, z:playerGroup.position.z, dx:Math.sin(yaw), dy:0, dz:Math.cos(yaw), spd:isSniper?250:140, dmg:isSniper?50:12, col:0x00d4ff };
+    if(isReloading || ammo <= 0) { if(ammo<=0) reload(); return; }
+    if(Date.now() - lastShoot < (isSniper ? 900 : 130)) return;
+    lastShoot = Date.now(); ammo--; updateUI();
+    const d = { t:'f', o:myID, x:playerGroup.position.x, y:playerGroup.position.y+1.8, z:playerGroup.position.z, dx:Math.sin(yaw), dy:0, dz:Math.cos(yaw), spd:isSniper?280:150, dmg:isSniper?55:12, col:isSniper?0xff00ff:0x00ffcc };
     channel.publish('p', d); createBullet(d);
 }
 
 function activateShield() {
-    if(isShield || stamina < 50) return;
-    isShield = true; stamina -= 50;
-    document.getElementById('shield-indicator').style.display = 'block';
-    setTimeout(() => { isShield = false; document.getElementById('shield-indicator').style.display = 'none'; }, 3000);
+    if(isShield || stamina < 40) return;
+    isShield = true; stamina -= 40;
+    playerGroup.getObjectByName("shield").material.opacity = 0.3;
+    setTimeout(() => { isShield = false; playerGroup.getObjectByName("shield").material.opacity = 0; }, 3000);
+}
+
+function throwGrenade() {
+    if(Date.now() - lastGrenade < 3500) return;
+    lastGrenade = Date.now();
+    const d = { t:'g', o:myID, x:playerGroup.position.x, y:playerGroup.position.y+2, z:playerGroup.position.z, dx:Math.sin(yaw)*25, dy:12, dz:Math.cos(yaw)*25 };
+    channel.publish('p', d); createGrenade(d);
 }
 
 function createBullet(d) {
-    const m = new THREE.Mesh(new THREE.SphereGeometry(0.2), new THREE.MeshBasicMaterial({ color: d.col }));
+    const m = new THREE.Mesh(new THREE.SphereGeometry(0.25), new THREE.MeshBasicMaterial({ color: d.col }));
     m.position.set(d.x, d.y, d.z); scene.add(m);
-    bullets.push({ mesh:m, dir:new THREE.Vector3(d.dx, d.dy, d.dz), speed:d.spd, o:d.o, dmg:d.dmg, death:Date.now()+1500 });
+    bullets.push({ mesh:m, dir:new THREE.Vector3(d.dx, d.dy, d.dz), speed:d.spd, o:d.o, dmg:d.dmg });
 }
 
-function takeDamage(dmg, id) {
-    hp -= dmg; document.getElementById('hp-bar').style.width = hp + "%";
-    if(hp <= 0) {
-        channel.publish('p', { t:'k', killer:id, victim:myID });
-        hp = 100; playerGroup.position.set(0,0,0);
+function createGrenade(d) {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(0.5), new THREE.MeshStandardMaterial({ color: 0xffaa00, emissive: 0xff0000 }));
+    m.position.set(d.x, d.y, d.z); scene.add(m);
+    let vel = new THREE.Vector3(d.dx, d.dy, d.dz);
+    let gLoop = setInterval(() => {
+        m.position.addScaledVector(vel, 0.016);
+        vel.y -= 0.5;
+        if(m.position.y <= 0 || checkWall(m.position.x, m.position.y, m.position.z)) {
+            clearInterval(gLoop); scene.remove(m);
+            if(d.o === myID) checkGrenadeDamage(m.position);
+        }
+    }, 16);
+}
+
+function checkGrenadeDamage(pos) {
+    for(let id in otherPlayers) {
+        if(pos.distanceTo(otherPlayers[id].mesh.position) < 10) {
+            channel.publish('p', { t:'h', o:myID, tgt:id, dmg:45 });
+            showHit();
+        }
     }
 }
 
-function showHit() { 
-    const h = document.getElementById('hit-mark'); h.style.opacity = 1;
-    setTimeout(() => h.style.opacity = 0, 100);
+function takeDamage(dmg, id) {
+    hp -= dmg; document.getElementById('health-bar').style.width = hp + "%";
+    if(hp <= 0) { 
+        hp = 100; playerGroup.position.set(0, 0, 0); 
+        score = Math.max(0, score - 15); updateUI();
+    }
 }
-function updateAmmo() { document.getElementById('ammo-box').textContent = ammo + "/30"; if(ammo <= 0) reload(); }
-function reload() { isReloading = true; setTimeout(() => { ammo=30; isReloading=false; updateAmmo(); }, 2000); }
-function checkWall(x,y,z) { return walls.some(w => x>w.minX && x<w.maxX && z>w.minZ && z<w.maxZ && y>=w.minY && y<=w.maxY); }
+
+function showHit() {
+    const hm = document.getElementById('hit-marker'); hm.style.opacity = 1;
+    setTimeout(() => hm.style.opacity = 0, 150);
+}
+
+function updateUI() {
+    document.getElementById('ammo-box').textContent = ammo + " / 30";
+    document.getElementById('score').textContent = score;
+}
+
+function reload() {
+    if(isReloading) return;
+    isReloading = true;
+    const msg = document.getElementById('msg'); msg.textContent = "Rechargement..."; msg.style.display = "block";
+    setTimeout(() => { ammo = 30; isReloading = false; msg.style.display = "none"; updateUI(); }, 2000);
+}
+
 function updateRemote(d) {
-    if(!otherPlayers[d.o]) { otherPlayers[d.o] = { mesh: createPlayerMesh(0xff0055) }; scene.add(otherPlayers[d.o].mesh); }
-    otherPlayers[d.o].mesh.position.set(d.x, d.y, d.z); otherPlayers[d.o].mesh.rotation.y = d.ry;
+    if(!otherPlayers[d.o]) {
+        otherPlayers[d.o] = { mesh: createPlayerMesh(0xff0055) };
+        scene.add(otherPlayers[d.o].mesh);
+    }
+    otherPlayers[d.o].mesh.position.set(d.x, d.y, d.z);
+    otherPlayers[d.o].mesh.rotation.y = d.ry;
+    otherPlayers[d.o].mesh.getObjectByName("shield").material.opacity = d.s ? 0.3 : 0;
 }
+
+function checkWall(x,y,z) { return walls.some(w => x>w.minX && x<w.maxX && z>w.minZ && z<w.maxZ && y>=w.minY && y<=w.maxY); }
 
 function setupInputs() {
     window.onkeydown = e => { 
         keysDown[e.code] = true; 
         if(e.code === 'KeyE') activateShield();
+        if(e.code === 'KeyG') throwGrenade();
         if(e.code === 'KeyR') reload();
     };
     window.onkeyup = e => keysDown[e.code] = false;
-    document.onmousemove = e => { if(document.pointerLockElement) yaw -= e.movementX * 0.002; };
+    document.onmousemove = e => { if(document.pointerLockElement) yaw -= e.movementX * (isSniper ? 0.001 : 0.0025); };
     window.onmousedown = () => { if(document.pointerLockElement) shoot(); else renderer.domElement.requestPointerLock(); };
 }
 </script>
 </body>
 </html>
+
