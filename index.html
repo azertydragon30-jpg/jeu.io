@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Strike - COMPLEX MAP UPDATE</title>
+    <title>Neon Strike - FIX & COMBAT UPDATE</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
@@ -46,7 +46,7 @@
 </head>
 <body>
 
-<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">STRIKE</span></h1><p style="color:#888; margin-bottom:20px;">COMPLEX MAP UPDATE</p><button id="btn-conn" onclick="connectToCloud()">DÉPLOIEMENT</button></div></div>
+<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">STRIKE</span></h1><p style="color:#888; margin-bottom:20px;">STABILIZATION UPDATE</p><button id="btn-conn" onclick="connectToCloud()">DÉPLOIEMENT</button></div></div>
 
 <div id="ui">
     <div class="hud-panel"><div style="font-size:24px; font-weight:bold;">SCORE: <span id="score">0</span></div></div><br>
@@ -145,6 +145,8 @@ function initGame() {
     
     buildMap();
     playerGroup = createPlayerMesh(0x00d4ff);
+    // CORRECTION : Spawn au sol à une position dégagée
+    playerGroup.position.set(45, 0, 45);
     scene.add(playerGroup);
     
     for(let i=0; i<8; i++) spawnBot();
@@ -160,43 +162,26 @@ function createPlayerMesh(col) {
     g.add(b, h); return g;
 }
 
-// --- LOGIQUE DE MAP COMPLEXE ---
 function buildMap() {
     const grid = new THREE.GridHelper(1000, 100, 0x0033aa, 0x050510); scene.add(grid);
-    
-    // 1. CENTRE : Plateforme & Pilier
-    createWall(0, 0, 0, 30, 30, 6, 0x111122); // Base centrale
-    createWall(0, 6, 0, 10, 10, 20, 0x00d4ff); // Pilier central brillant
-    createJumpPad(0, 0, 20); createJumpPad(0, 0, -20); // Accès centre
+    createWall(0, 0, 0, 30, 30, 6, 0x111122); 
+    createWall(0, 6, 0, 10, 10, 20, 0x00d4ff); 
+    createJumpPad(0, 0, 20); createJumpPad(0, 0, -20); 
 
-    // 2. LES 4 QUARTIERS (Bâtiments tactiques)
-    const sectors = [
-        {x: 60, z: 60, col: 0xff0055}, 
-        {x: -60, z: 60, col: 0x00ffcc},
-        {x: 60, z: -60, col: 0xffff00},
-        {x: -60, z: -60, col: 0xff00ff}
-    ];
-
+    const sectors = [{x: 60, z: 60, col: 0xff0055}, {x: -60, z: 60, col: 0x00ffcc}, {x: 60, z: -60, col: 0xffff00}, {x: -60, z: -60, col: 0xff00ff}];
     sectors.forEach(s => {
-        // Bâtiment principal de secteur
         createWall(s.x, 0, s.z, 25, 25, 15, 0x112233);
-        // Corniche
         createWall(s.x, 15, s.z, 28, 28, 1, s.col);
-        // Mur de protection sur le toit
         createWall(s.x + 10, 16, s.z, 2, 20, 3, 0x222222);
-        // Jump Pad pour monter au bâtiment
         createJumpPad(s.x > 0 ? s.x-20 : s.x+20, 0, s.z);
     });
 
-    // 3. COUVERTURES TACTIQUES (Crates et Murs bas)
     for(let i=0; i<15; i++) {
-        let rx = (Math.random()-0.5)*200;
-        let rz = (Math.random()-0.5)*200;
-        if(Math.abs(rx) < 20 && Math.abs(rz) < 20) rx += 40; // Eviter le centre
+        let rx = (Math.random()-0.5)*200; let rz = (Math.random()-0.5)*200;
+        if(Math.abs(rx) < 25 && Math.abs(rz) < 25) rx += 50; 
         createWall(rx, 0, rz, 4, 4, 4, 0x00d4ff);
     }
 
-    // 4. MURS EXTÉRIEURS (Limites)
     const limit = 200;
     createWall(0, 0, limit, limit*2, 10, 50, 0x050510);
     createWall(0, 0, -limit, limit*2, 10, 50, 0x050510);
@@ -243,14 +228,13 @@ function loop() {
     const now = Date.now(), dt = 0.016;
     if(isFiring) shoot();
 
-    // Bots logic
     bots.forEach(bot => {
         if (now > bot.changeDirAt) { bot.dir.set(Math.random()-0.5, 0, Math.random()-0.5).normalize(); bot.changeDirAt = now + 2000 + Math.random()*3000; }
         const nextX = bot.mesh.position.x + bot.dir.x * 12 * dt; const nextZ = bot.mesh.position.z + bot.dir.z * 12 * dt;
         if (!checkWall(nextX, bot.mesh.position.y + 1, nextZ)) { bot.mesh.position.x = nextX; bot.mesh.position.z = nextZ; }
         bot.mesh.rotation.y = Math.atan2(bot.dir.x, bot.dir.z);
         if (bot.mesh.position.distanceTo(playerGroup.position) < 50 && now - bot.lastShoot > 1200) {
-            bot.lastShoot = now; const shootDir = playerGroup.position.clone().sub(bot.mesh.position).normalize();
+            bot.lastShoot = now; const shootDir = playerGroup.position.clone().add(new THREE.Vector3(0,1.8,0)).sub(bot.mesh.position).normalize();
             createBullet({ t:'f', o:bot.id, x:bot.mesh.position.x, y:bot.mesh.position.y+1.8, z:bot.mesh.position.z, dx:shootDir.x, dy:shootDir.y, dz:shootDir.z, spd:80, dmg:8, col:0xffaa00 });
         }
     });
@@ -278,7 +262,6 @@ function loop() {
         if(!checkWall(playerGroup.position.x, playerGroup.position.y + 1, nextZ)) playerGroup.position.z = nextZ;
     }
     
-    // Jump Pads check
     jumpPads.forEach(pad => {
         let d = Math.sqrt((playerGroup.position.x-pad.x)**2 + (playerGroup.position.z-pad.z)**2);
         if(d < pad.radius && Math.abs(playerGroup.position.y - 0.25) < 2) { vy = 60; playSound('jump', 0.4); }
@@ -307,11 +290,16 @@ function loop() {
         if(checkWall(b.mesh.position.x, b.mesh.position.y, b.mesh.position.z)) { scene.remove(b.mesh); bullets.splice(i,1); continue; }
         if(b.o === myID) {
             bots.forEach((bot, botIdx) => {
-                if(b.mesh.position.distanceTo(bot.mesh.position.clone().add(new THREE.Vector3(0,1,0))) < 2.5) {
+                // CORRECTION HITBOX : Un peu plus large pour faciliter les kills
+                if(b.mesh.position.distanceTo(bot.mesh.position.clone().add(new THREE.Vector3(0,1.2,0))) < 2.8) {
                     bot.hp -= b.dmg; triggerHitMarker(); scene.remove(b.mesh); bullets.splice(i,1);
                     if(bot.hp <= 0) { addKillFeed("Toi", "Bot"); scene.remove(bot.mesh); bots.splice(botIdx, 1); setTimeout(spawnBot, 5000); }
                 }
             });
+        }
+        // Bot touche joueur
+        if(b.o.startsWith("Bot") && b.mesh.position.distanceTo(playerGroup.position.clone().add(new THREE.Vector3(0,1,0))) < 2) {
+            takeDamage(b.dmg, b.o); scene.remove(b.mesh); bullets.splice(i,1);
         }
         if(bullets[i] && now > b.death) { scene.remove(b.mesh); bullets.splice(i,1); }
     }
@@ -346,7 +334,7 @@ function toggleScope(e) { if(e) e.preventDefault(); if(!isSniper) { isSniper=tru
 function triggerHitMarker() { const hm = document.getElementById('hit-marker'); hm.style.opacity = 1; setTimeout(() => { hm.style.opacity = 0; }, 150); }
 function reload(e) { if(e) e.preventDefault(); if(!isReloading){ isReloading=true; document.getElementById('reload-msg').style.display='block'; setTimeout(()=>{WEAPONS[currentWeaponIdx].ammo=WEAPONS[currentWeaponIdx].maxAmmo; document.getElementById('ammo-val').textContent=WEAPONS[currentWeaponIdx].ammo; isReloading=false; document.getElementById('reload-msg').style.display='none';},2000); } }
 function createBullet(d) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.2,0.2,0.8), new THREE.MeshBasicMaterial({color:d.col})); m.position.set(d.x,d.y,d.z); m.lookAt(d.x+d.dx, d.y+d.dy, d.z+d.dz); scene.add(m); bullets.push({mesh:m, dir:new THREE.Vector3(d.dx,d.dy,d.dz), speed:d.spd, dmg:d.dmg, col:d.col, o:d.o, death:Date.now()+2000}); }
-function takeDamage(d, id) { hp-=d; document.getElementById('health-bar').style.width=Math.max(0,hp)+"%"; if(hp<=0) { hp=100; playerGroup.position.set(0,30,0); score=Math.max(0,score-50); document.getElementById('score').textContent=score; } }
+function takeDamage(d, id) { hp-=d; document.getElementById('health-bar').style.width=Math.max(0,hp)+"%"; if(hp<=0) { hp=100; playerGroup.position.set(45,0,45); score=Math.max(0,score-50); document.getElementById('score').textContent=score; } }
 function addKillFeed(k,v) { const d=document.createElement('div'); d.className='kill-item'; d.innerHTML=`${k} 🔪 ${v}`; document.getElementById('kill-feed').prepend(d); if(k==="Toi"){score+=100; document.getElementById('score').textContent=score;} }
 function updateRemote(d) { if(!otherPlayers[d.o]) { otherPlayers[d.o]={mesh:createPlayerMesh(0xff0055)}; scene.add(otherPlayers[d.o].mesh); } otherPlayers[d.o].mesh.position.set(d.x,d.y,d.z); otherPlayers[d.o].mesh.rotation.y=d.ry; }
 function removeRemote(id) { if(otherPlayers[id]) { scene.remove(otherPlayers[id].mesh); delete otherPlayers[id]; } }
