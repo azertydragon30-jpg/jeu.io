@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Strike - LEADERBOARD UPDATE</title>
+    <title>Neon Strike - ADVANCED AIMING UPDATE</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
@@ -15,7 +15,6 @@
         #ammo-box { position: fixed; bottom: 20px; right: 20px; font-size: 35px; font-weight: 900; color: #00d4ff; text-shadow: 0 0 10px #00d4ff; z-index: 5; text-align: right; }
         #weapon-info { font-size: 14px; color: #fff; text-transform: uppercase; }
         
-        /* Leaderboard Style */
         #leaderboard { position: fixed; top: 10px; right: 10px; background: rgba(0, 0, 0, 0.7); border: 1px solid #00d4ff; padding: 10px; width: 180px; font-family: monospace; z-index: 100; pointer-events: none; border-radius: 4px; }
         #leaderboard h3 { margin: 0 0 10px 0; font-size: 14px; color: #00d4ff; border-bottom: 1px solid #00d4ff; padding-bottom: 5px; text-transform: uppercase; }
         .leader-item { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 3px; }
@@ -52,7 +51,7 @@
 </head>
 <body>
 
-<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">STRIKE</span></h1><p style="color:#888; margin-bottom:20px;">RANKING SYSTEM ONLINE</p><button id="btn-conn" onclick="connectToCloud()">DÉPLOIEMENT</button></div></div>
+<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">STRIKE</span></h1><p style="color:#888; margin-bottom:20px;">PRECISION AIM ENABLED</p><button id="btn-conn" onclick="connectToCloud()">DÉPLOIEMENT</button></div></div>
 
 <div id="ui">
     <div class="hud-panel"><div style="font-size:24px; font-weight:bold;">SCORE: <span id="score">0</span></div></div><br>
@@ -85,7 +84,7 @@
 
 <script>
 const KEYS_CONFIG = ['hoXqWQ.xS6MJA:4jw_S7dp30pIrB7Sm3tCM6S4WQa57PAqkPdp-WN-Ros'];
-let scene, camera, renderer, playerGroup, yaw = 0;
+let scene, camera, renderer, playerGroup, yaw = 0, pitch = 0;
 let ably, channel, myID, otherPlayers = {}, bullets = [], walls = [], bots = [], jumpPads = [];
 let keysDown = {}, hp = 100, score = 0;
 let lastShoot = 0, lastDash = 0, lastSync = 0, shakeTime = 0;
@@ -334,14 +333,26 @@ function loop() {
         if(bullets[i] && now > b.death) { scene.remove(b.mesh); bullets.splice(i,1); }
     }
 
-    // Camera
-    const camHeight = (isSniper ? 1.8 : 8); const camDist = isSniper ? 0 : 13;
-    camera.position.lerp(new THREE.Vector3(playerGroup.position.x - Math.sin(yaw) * camDist, playerGroup.position.y + camHeight + (shakeTime > 0 ? Math.random() : 0), playerGroup.position.z - Math.cos(yaw) * camDist), 0.2);
-    camera.lookAt(playerGroup.position.x, playerGroup.position.y + 2.5, playerGroup.position.z);
+    // Caméra avec GESTION DU PITCH (Visée Verticale)
+    const camHeight = (isSniper ? 1.8 : 8); 
+    const camDist = isSniper ? 0 : 13;
+    
+    // Calcul de la direction du regard
+    const lookAtX = playerGroup.position.x + Math.sin(yaw) * Math.cos(pitch);
+    const lookAtY = playerGroup.position.y + camHeight + Math.sin(pitch);
+    const lookAtZ = playerGroup.position.z + Math.cos(yaw) * Math.cos(pitch);
+
+    camera.position.lerp(new THREE.Vector3(
+        playerGroup.position.x - Math.sin(yaw) * camDist * Math.cos(pitch), 
+        playerGroup.position.y + camHeight - Math.sin(pitch) * camDist + (shakeTime > 0 ? (Math.random()-0.5) : 0), 
+        playerGroup.position.z - Math.cos(yaw) * camDist * Math.cos(pitch)
+    ), 0.2);
+
+    camera.lookAt(lookAtX, lookAtY, lookAtZ);
     
     if(shakeTime > 0) shakeTime--;
     if(now - lastSync > 50) { 
-        channel.publish('p', { t:'m', o:myID, x:playerGroup.position.x, y:playerGroup.position.y, z:playerGroup.position.z, ry:yaw, score: score }); 
+        channel.publish('p', { t:'m', o:myID, x:playerGroup.position.x, y:playerGroup.position.y, z:playerGroup.position.z, ry:yaw, rp:pitch, score: score }); 
         lastSync = now; 
         updateLeaderboard();
     }
@@ -356,7 +367,13 @@ function shoot() {
     shakeTime = w.name.includes("Railgun") ? 12 : 5; playSound('shoot');
     for(let i=0; i<w.count; i++) {
         const spreadX = (Math.random()-0.5) * w.spread;
-        const d = { t:'f', o:myID, x:playerGroup.position.x, y:playerGroup.position.y+1.8, z:playerGroup.position.z, dx:Math.sin(yaw+spreadX), dy:(Math.random()-0.5)*w.spread, dz:Math.cos(yaw+spreadX), spd:w.speed, dmg:w.dmg, col:w.color };
+        const d = { 
+            t:'f', o:myID, x:playerGroup.position.x, y:playerGroup.position.y+1.8, z:playerGroup.position.z, 
+            dx:Math.sin(yaw+spreadX) * Math.cos(pitch), 
+            dy:Math.sin(pitch) + (Math.random()-0.5)*w.spread, 
+            dz:Math.cos(yaw+spreadX) * Math.cos(pitch), 
+            spd:w.speed, dmg:w.dmg, col:w.color 
+        };
         channel.publish('p', d); createBullet(d);
     }
 }
@@ -364,7 +381,19 @@ function shoot() {
 function jump(e) { if(e) e.preventDefault(); if (jumpCount < 2) { vy = JUMP_FORCE; jumpCount++; playSound('jump', 0.15); } }
 function startFire(e) { e.preventDefault(); isFiring = true; shoot(); }
 function stopFire(e) { e.preventDefault(); isFiring = false; }
-function toggleScope(e) { if(e) e.preventDefault(); if(!isSniper) { isSniper=true; camera.fov=25; camera.updateProjectionMatrix(); document.getElementById('sniper-scope').style.display='block'; playerGroup.visible=false; } else { isSniper=false; camera.fov=80; camera.updateProjectionMatrix(); document.getElementById('sniper-scope').style.display='none'; playerGroup.visible=true; } }
+
+function toggleScope(e) { 
+    if(e) e.preventDefault(); 
+    if(!isSniper) { 
+        isSniper=true; camera.fov=15; camera.updateProjectionMatrix(); 
+        document.getElementById('sniper-scope').style.display='block'; 
+        playerGroup.visible=false; 
+    } else { 
+        isSniper=false; camera.fov=80; camera.updateProjectionMatrix(); 
+        document.getElementById('sniper-scope').style.display='none'; 
+        playerGroup.visible=true; 
+    } 
+}
 
 function triggerHitMarker() { const hm = document.getElementById('hit-marker'); hm.style.opacity = 1; setTimeout(() => { hm.style.opacity = 0; }, 150); }
 function reload(e) { if(e) e.preventDefault(); if(!isReloading){ isReloading=true; document.getElementById('reload-msg').style.display='block'; setTimeout(()=>{WEAPONS[currentWeaponIdx].ammo=WEAPONS[currentWeaponIdx].maxAmmo; document.getElementById('ammo-val').textContent=WEAPONS[currentWeaponIdx].ammo; isReloading=false; document.getElementById('reload-msg').style.display='none';},2000); } }
@@ -391,11 +420,12 @@ function addKillFeed(k,v) {
 
 function updateRemote(d) { 
     if(!otherPlayers[d.o]) { 
-        otherPlayers[d.o]={ mesh: createPlayerMesh(0xff0055), targetPos: new THREE.Vector3(d.x, d.y, d.z), targetRy: d.ry, score: d.score || 0 }; 
+        otherPlayers[d.o]={ mesh: createPlayerMesh(0xff0055), targetPos: new THREE.Vector3(d.x, d.y, d.z), targetRy: d.ry, targetRp: d.rp || 0, score: d.score || 0 }; 
         scene.add(otherPlayers[d.o].mesh); 
     } 
     otherPlayers[d.o].targetPos.set(d.x, d.y, d.z);
     otherPlayers[d.o].targetRy = d.ry;
+    otherPlayers[d.o].targetRp = d.rp || 0;
     otherPlayers[d.o].score = d.score || 0;
 }
 
@@ -405,16 +435,47 @@ function checkWall(x,y,z) { return walls.some(w => x>w.minX && x<w.maxX && z>w.m
 function setupInputs() {
     window.onkeydown=e=>{ keysDown[e.code]=true; if(e.code==='KeyR') reload(); if(e.code==='Space') jump(); if(e.code==='Digit1') switchWeapon(0); if(e.code==='Digit2') switchWeapon(1); if(e.code==='Digit3') switchWeapon(2); }; 
     window.onkeyup=e=>keysDown[e.code]=false;
-    document.onmousemove=e=>{ if(document.pointerLockElement) yaw-=e.movementX*(isSniper?0.001:0.003) };
-    window.onmousedown=()=>{ if(!isMobile) { if(document.pointerLockElement) shoot(); else { renderer.domElement.requestPointerLock(); initAudio(); } } };
+    
+    document.onmousemove=e=>{ 
+        if(document.pointerLockElement) {
+            const sens = isSniper ? 0.0008 : 0.003;
+            yaw -= e.movementX * sens;
+            pitch -= e.movementY * sens;
+            // Bloquer la vue pour ne pas faire de salto arrière
+            pitch = Math.max(-Math.PI/2.2, Math.min(Math.PI/2.2, pitch));
+        } 
+    };
+    
+    window.onmousedown=()=>{ 
+        if(!isMobile) { 
+            if(document.pointerLockElement) {
+                if (window.event.button === 0) shoot(); 
+                if (window.event.button === 2) toggleScope(); // Clic droit pour sniper
+            } else { 
+                renderer.domElement.requestPointerLock(); 
+                initAudio(); 
+            } 
+        } 
+    };
+    // Empêcher le menu contextuel sur clic droit
+    window.oncontextmenu = e => e.preventDefault();
 }
 
 function setupTouchControls() {
     const stickZone = document.getElementById('stick-container'), stick = document.getElementById('stick'), lookZone = document.getElementById('look-zone');
     stickZone.addEventListener('touchmove', (e) => { e.preventDefault(); const t = e.touches[0], r = stickZone.getBoundingClientRect(), cx = r.left + r.width/2, cy = r.top + r.height/2; let dx = t.clientX - cx, dy = t.clientY - cy, dist = Math.sqrt(dx*dx + dy*dy); if(dist > 50) { dx = (dx/dist)*50; dy = (dy/dist)*50; } stick.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`; touchMove = { x: dx/50, y: dy/50 }; });
     stickZone.addEventListener('touchend', (e) => { e.preventDefault(); stick.style.transform = `translate(-50%, -50%)`; touchMove = { x: 0, y: 0 }; });
-    let lx = 0; lookZone.addEventListener('touchstart', e => { lx = e.touches[0].clientX; });
-    lookZone.addEventListener('touchmove', e => { e.preventDefault(); const tx = e.touches[0].clientX, dx = tx - lx; yaw -= dx * 0.005; lx = tx; });
+    let lx = 0, ly = 0; 
+    lookZone.addEventListener('touchstart', e => { lx = e.touches[0].clientX; ly = e.touches[0].clientY; });
+    lookZone.addEventListener('touchmove', e => { 
+        e.preventDefault(); 
+        const tx = e.touches[0].clientX, ty = e.touches[0].clientY; 
+        const dx = tx - lx, dy = ty - ly; 
+        yaw -= dx * 0.005; 
+        pitch -= dy * 0.005;
+        pitch = Math.max(-Math.PI/2.2, Math.min(Math.PI/2.2, pitch));
+        lx = tx; ly = ty; 
+    });
 }
 </script>
 </body>
