@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Strike - SMOOTH SYNC UPDATE</title>
+    <title>Neon Strike - LEADERBOARD UPDATE</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
@@ -15,6 +15,12 @@
         #ammo-box { position: fixed; bottom: 20px; right: 20px; font-size: 35px; font-weight: 900; color: #00d4ff; text-shadow: 0 0 10px #00d4ff; z-index: 5; text-align: right; }
         #weapon-info { font-size: 14px; color: #fff; text-transform: uppercase; }
         
+        /* Leaderboard Style */
+        #leaderboard { position: fixed; top: 10px; right: 10px; background: rgba(0, 0, 0, 0.7); border: 1px solid #00d4ff; padding: 10px; width: 180px; font-family: monospace; z-index: 100; pointer-events: none; border-radius: 4px; }
+        #leaderboard h3 { margin: 0 0 10px 0; font-size: 14px; color: #00d4ff; border-bottom: 1px solid #00d4ff; padding-bottom: 5px; text-transform: uppercase; }
+        .leader-item { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 3px; }
+        .is-me { color: #00d4ff; font-weight: bold; }
+
         #sniper-scope { position: fixed; inset: 0; border-radius: 50%; pointer-events: none; display: none; box-shadow: 0 0 0 1000px #000; border: 2px solid #555; background: radial-gradient(circle, transparent 30%, #000 80%); z-index: 20; }
         #crosshair { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 4px; height: 4px; background: #00fff2; border-radius: 50%; pointer-events: none; box-shadow: 0 0 5px #00fff2; z-index: 21; }
         #hit-marker { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(45deg); width: 24px; height: 24px; border: 3px solid #ff0055; opacity: 0; transition: opacity 0.1s; pointer-events: none; border-left: none; border-top: none; z-index: 22; }
@@ -22,7 +28,7 @@
         #reload-msg { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 30px; color: #ff0055; font-weight: bold; display: none; text-shadow: 0 0 10px red; animation: blink 0.3s infinite; z-index: 25; }
         @keyframes blink { 50% { opacity: 0; } }
         
-        #kill-feed { position: absolute; top: 20px; right: 20px; text-align: right; font-size: 16px; font-weight: bold; font-family: monospace; z-index: 10; }
+        #kill-feed { position: absolute; top: 150px; right: 20px; text-align: right; font-size: 14px; font-weight: bold; font-family: monospace; z-index: 10; }
         .kill-item { background: rgba(0,0,0,0.7); color: #fff; padding: 5px 10px; margin-bottom: 2px; border-right: 3px solid #00d4ff; animation: fadeout 4s forwards; }
         @keyframes fadeout { 0% { opacity:1; transform:translateX(20px); } 10% { transform:translateX(0); } 80% { opacity:1; } 100% { opacity:0; display:none; } }
 
@@ -46,11 +52,16 @@
 </head>
 <body>
 
-<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">STRIKE</span></h1><p style="color:#888; margin-bottom:20px;">SYNC OPTIMIZED</p><button id="btn-conn" onclick="connectToCloud()">DÉPLOIEMENT</button></div></div>
+<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">STRIKE</span></h1><p style="color:#888; margin-bottom:20px;">RANKING SYSTEM ONLINE</p><button id="btn-conn" onclick="connectToCloud()">DÉPLOIEMENT</button></div></div>
 
 <div id="ui">
     <div class="hud-panel"><div style="font-size:24px; font-weight:bold;">SCORE: <span id="score">0</span></div></div><br>
     <div class="hud-panel"><div>SANTÉ</div><div id="health-bar-bg"><div id="health-bar"></div></div></div>
+</div>
+
+<div id="leaderboard">
+    <h3>Classement</h3>
+    <div id="leaderboard-list"></div>
 </div>
 
 <div id="ammo-box">
@@ -222,6 +233,19 @@ function switchWeapon(idx) {
 
 function cycleWeapon(e) { if(e) e.preventDefault(); switchWeapon((currentWeaponIdx + 1) % WEAPONS.length); }
 
+function updateLeaderboard() {
+    let players = [{ id: "Toi", s: score, me: true }];
+    for (let id in otherPlayers) { players.push({ id: id, s: otherPlayers[id].score || 0, me: false }); }
+    players.sort((a, b) => b.s - a.s);
+    const list = document.getElementById('leaderboard-list');
+    list.innerHTML = players.slice(0, 5).map(p => `
+        <div class="leader-item ${p.me ? 'is-me' : ''}">
+            <span>${p.id}</span>
+            <span>${p.s}</span>
+        </div>
+    `).join('');
+}
+
 function loop() {
     requestAnimationFrame(loop);
     const now = Date.now(), dt = 0.016;
@@ -264,13 +288,11 @@ function loop() {
         if(!checkWall(playerGroup.position.x, playerGroup.position.y + 1, nextZ)) playerGroup.position.z = nextZ;
     }
     
-    // Jump Pads
     jumpPads.forEach(pad => {
         let d = Math.sqrt((playerGroup.position.x-pad.x)**2 + (playerGroup.position.z-pad.z)**2);
         if(d < pad.radius && Math.abs(playerGroup.position.y - 0.25) < 2) { vy = 60; playSound('jump', 0.4); }
     });
 
-    // Physique
     vy += GRAVITY * dt; 
     playerGroup.position.y += vy * dt;
     let onObject = false;
@@ -287,10 +309,10 @@ function loop() {
     if(onObject) { canJump = true; jumpCount = 0; }
     playerGroup.rotation.y = yaw;
 
-    // INTERPOLATION DES AUTRES JOUEURS (Smoothing)
+    // Smoothing others
     for(let id in otherPlayers) {
         const p = otherPlayers[id];
-        p.mesh.position.lerp(p.targetPos, 0.2); // Glissement fluide vers la cible
+        p.mesh.position.lerp(p.targetPos, 0.2);
         p.mesh.rotation.y += (p.targetRy - p.mesh.rotation.y) * 0.2;
     }
 
@@ -312,16 +334,16 @@ function loop() {
         if(bullets[i] && now > b.death) { scene.remove(b.mesh); bullets.splice(i,1); }
     }
 
-    // Caméra
+    // Camera
     const camHeight = (isSniper ? 1.8 : 8); const camDist = isSniper ? 0 : 13;
     camera.position.lerp(new THREE.Vector3(playerGroup.position.x - Math.sin(yaw) * camDist, playerGroup.position.y + camHeight + (shakeTime > 0 ? Math.random() : 0), playerGroup.position.z - Math.cos(yaw) * camDist), 0.2);
     camera.lookAt(playerGroup.position.x, playerGroup.position.y + 2.5, playerGroup.position.z);
     
-    // SYNC FREQUENCY UPDATE (Maintenant 50ms pour plus de réactivité)
     if(shakeTime > 0) shakeTime--;
     if(now - lastSync > 50) { 
-        channel.publish('p', { t:'m', o:myID, x:playerGroup.position.x, y:playerGroup.position.y, z:playerGroup.position.z, ry:yaw }); 
+        channel.publish('p', { t:'m', o:myID, x:playerGroup.position.x, y:playerGroup.position.y, z:playerGroup.position.z, ry:yaw, score: score }); 
         lastSync = now; 
+        updateLeaderboard();
     }
     renderer.render(scene, camera);
 }
@@ -360,16 +382,21 @@ function takeDamage(d, id) {
     } 
 }
 
-function addKillFeed(k,v) { const d=document.createElement('div'); d.className='kill-item'; d.innerHTML=`${k} 🔪 ${v}`; document.getElementById('kill-feed').prepend(d); if(k==="Toi"){score+=100; document.getElementById('score').textContent=score;} }
+function addKillFeed(k,v) { 
+    const d=document.createElement('div'); d.className='kill-item'; d.innerHTML=`${k} 🔪 ${v}`; 
+    document.getElementById('kill-feed').prepend(d); 
+    if(k==="Toi"){ score+=100; document.getElementById('score').textContent=score; } 
+    updateLeaderboard();
+}
 
 function updateRemote(d) { 
     if(!otherPlayers[d.o]) { 
-        otherPlayers[d.o]={ mesh: createPlayerMesh(0xff0055), targetPos: new THREE.Vector3(d.x, d.y, d.z), targetRy: d.ry }; 
+        otherPlayers[d.o]={ mesh: createPlayerMesh(0xff0055), targetPos: new THREE.Vector3(d.x, d.y, d.z), targetRy: d.ry, score: d.score || 0 }; 
         scene.add(otherPlayers[d.o].mesh); 
     } 
-    // Mise à jour de la destination cible pour l'interpolation
     otherPlayers[d.o].targetPos.set(d.x, d.y, d.z);
     otherPlayers[d.o].targetRy = d.ry;
+    otherPlayers[d.o].score = d.score || 0;
 }
 
 function removeRemote(id) { if(otherPlayers[id]) { scene.remove(otherPlayers[id].mesh); delete otherPlayers[id]; } }
