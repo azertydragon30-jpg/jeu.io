@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Strike - VERTICALITY UPDATE</title>
+    <title>Neon Strike - CONTROLS UPDATE</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
@@ -31,9 +31,6 @@
         button { padding: 15px 40px; background: linear-gradient(45deg, #00d4ff, #0088aa); border: none; font-weight: 900; letter-spacing: 2px; cursor: pointer; color: #000; transition: transform 0.1s; text-transform: uppercase; }
         button:hover { transform: scale(1.05); filter: brightness(1.2); }
 
-        .dmg-text { position: absolute; color: #ffcc00; font-weight: 900; font-size: 20px; pointer-events: none; text-shadow: 0 0 3px #000; animation: floatUp 1s forwards; z-index: 15; }
-        @keyframes floatUp { 0% { transform: translateY(0) scale(1); opacity: 1; } 100% { transform: translateY(-50px) scale(1.5); opacity: 0; } }
-
         #mobile-controls { display: none; position: absolute; inset: 0; z-index: 50; pointer-events: none; }
         .touch-zone { position: absolute; bottom: 50px; width: 150px; height: 150px; pointer-events: auto; }
         #stick-container { left: 30px; border: 2px solid rgba(255,255,255,0.2); border-radius: 50%; background: rgba(0,0,0,0.2); }
@@ -49,7 +46,7 @@
 </head>
 <body>
 
-<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">STRIKE</span></h1><p style="color:#888; margin-bottom:20px;">VERTICALITY UPDATE</p><button id="btn-conn" onclick="connectToCloud()">DÉPLOIEMENT</button></div></div>
+<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">STRIKE</span></h1><p style="color:#888; margin-bottom:20px;">KEYBOARD UPDATE</p><button id="btn-conn" onclick="connectToCloud()">DÉPLOIEMENT</button></div></div>
 
 <div id="ui">
     <div class="hud-panel"><div style="font-size:24px; font-weight:bold;">SCORE: <span id="score">0</span></div></div><br>
@@ -76,9 +73,9 @@
 </div>
 
 <script>
-const KEYS = ['hoXqWQ.xS6MJA:4jw_S7dp30pIrB7Sm3tCM6S4WQa57PAqkPdp-WN-Ros'];
+const KEYS_CONFIG = ['hoXqWQ.xS6MJA:4jw_S7dp30pIrB7Sm3tCM6S4WQa57PAqkPdp-WN-Ros'];
 let scene, camera, renderer, playerGroup, yaw = 0;
-let ably, channel, myID, otherPlayers = {}, bullets = [], particles = [], walls = [], bots = [], floatingTexts = [], jumpPads = [];
+let ably, channel, myID, otherPlayers = {}, bullets = [], walls = [], bots = [], jumpPads = [];
 let keysDown = {}, hp = 100, score = 0;
 let lastShoot = 0, lastDash = 0, lastSync = 0, shakeTime = 0;
 let isReloading = false, isSniper = false;
@@ -99,7 +96,7 @@ async function connectToCloud() {
     myID = "Ghost-" + Math.floor(Math.random()*999);
     initAudio(); 
     try {
-        ably = new Ably.Realtime({ key: KEYS[0], clientId: myID });
+        ably = new Ably.Realtime({ key: KEYS_CONFIG[0], clientId: myID });
         ably.connection.on('connected', async () => {
             channel = ably.channels.get('neon-elite');
             channel.subscribe('p', handleMessage);
@@ -165,24 +162,14 @@ function createPlayerMesh(col) {
 
 function buildMap() {
     const grid = new THREE.GridHelper(800, 80, 0x0033aa, 0x050510); scene.add(grid);
-    
-    // ARENE CENTRALE
     createWall(0, 0, 0, 15, 15, 4, 0x00ffcc);
-
-    // LES 4 TOURS + JUMP PADS
     const towerPos = [[80,80], [-80,80], [80,-80], [-80,-80]];
     towerPos.forEach(p => {
-        createWall(p[0], 0, p[1], 16, 16, 25, 0x112233); // Tour
-        createWall(p[0], 25, p[1], 18, 18, 1, 0x00d4ff); // Toit
-        createJumpPad(p[0], 0, p[1] > 0 ? p[1]-12 : p[1]+12); // Pad au pied de la tour
+        createWall(p[0], 0, p[1], 16, 16, 25, 0x112233); 
+        createWall(p[0], 25, p[1], 18, 18, 1, 0x00d4ff); 
+        createJumpPad(p[0], 0, p[1] > 0 ? p[1]-12 : p[1]+12); 
     });
-
-    // LABYRINTHE
-    for(let i=0; i<8; i++) {
-        createWall(-60 + i*15, 0, 60, 3, 25, 8, 0xff0055);
-    }
-
-    // BORDURES
+    for(let i=0; i<8; i++) createWall(-60 + i*15, 0, 60, 3, 25, 8, 0xff0055);
     createWall(0, 0, 160, 320, 5, 40, 0x050510);
     createWall(0, 0, -160, 320, 5, 40, 0x050510);
     createWall(160, 0, 0, 5, 320, 40, 0x050510);
@@ -232,7 +219,7 @@ function loop() {
     bots.forEach(bot => {
         if (now > bot.changeDirAt) { bot.dir.set(Math.random()-0.5, 0, Math.random()-0.5).normalize(); bot.changeDirAt = now + 2000 + Math.random()*3000; }
         const nextX = bot.mesh.position.x + bot.dir.x * 12 * dt; const nextZ = bot.mesh.position.z + bot.dir.z * 12 * dt;
-        if (!checkWall(nextX, bot.mesh.position.y + 1, nextZ)) { bot.mesh.position.x = nextX; bot.mesh.position.z = nextZ; } else { bot.changeDirAt = 0; }
+        if (!checkWall(nextX, bot.mesh.position.y + 1, nextZ)) { bot.mesh.position.x = nextX; bot.mesh.position.z = nextZ; }
         bot.mesh.rotation.y = Math.atan2(bot.dir.x, bot.dir.z);
         if (bot.mesh.position.distanceTo(playerGroup.position) < 50 && now - bot.lastShoot > 1200) {
             bot.lastShoot = now; const shootDir = playerGroup.position.clone().sub(bot.mesh.position).normalize();
@@ -240,15 +227,21 @@ function loop() {
         }
     });
 
+    // --- LOGIQUE DE MOUVEMENT MISE À JOUR (Z/W/FlècheHaut, S/FlècheBas, etc.) ---
     const isCrouch = keysDown['KeyC'] || keysDown['ControlLeft'];
     let moveSpeed = 32;
     if(keysDown['ShiftLeft'] && now - lastDash > 1500) { lastDash = now; moveSpeed = 130; shakeTime = 5; }
 
     const move = new THREE.Vector3();
-    if(keysDown['KeyW']) move.add(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
-    if(keysDown['KeyS']) move.sub(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
-    if(keysDown['KeyA']) move.add(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
-    if(keysDown['KeyD']) move.sub(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
+    // Avancer
+    if(keysDown['KeyW'] || keysDown['ArrowUp']) move.add(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
+    // Reculer
+    if(keysDown['KeyS'] || keysDown['ArrowDown']) move.sub(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
+    // Gauche
+    if(keysDown['KeyA'] || keysDown['ArrowLeft']) move.add(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
+    // Droite
+    if(keysDown['KeyD'] || keysDown['ArrowRight']) move.sub(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
+
     if(isMobile) {
         move.add(new THREE.Vector3(Math.sin(yaw) * -touchMove.y * 0.5, 0, Math.cos(yaw) * -touchMove.y * 0.5));
         move.add(new THREE.Vector3(Math.cos(yaw) * touchMove.x * 0.5, 0, -Math.sin(yaw) * touchMove.x * 0.5));
@@ -297,7 +290,6 @@ function loop() {
                 }
             });
         }
-        if(b.o.startsWith("Bot-") && b.mesh.position.distanceTo(playerGroup.position.clone().add(new THREE.Vector3(0,1,0))) < 2) { takeDamage(b.dmg, b.o); scene.remove(b.mesh); bullets.splice(i,1); }
         if(bullets[i] && now > b.death) { scene.remove(b.mesh); bullets.splice(i,1); }
     }
 
@@ -354,4 +346,3 @@ function setupTouchControls() {
 </script>
 </body>
 </html>
-
