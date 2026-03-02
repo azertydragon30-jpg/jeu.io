@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Strike - CONTROLS UPDATE</title>
+    <title>Neon Strike - COMPLEX MAP UPDATE</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
@@ -46,7 +46,7 @@
 </head>
 <body>
 
-<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">STRIKE</span></h1><p style="color:#888; margin-bottom:20px;">KEYBOARD UPDATE</p><button id="btn-conn" onclick="connectToCloud()">DÉPLOIEMENT</button></div></div>
+<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">STRIKE</span></h1><p style="color:#888; margin-bottom:20px;">COMPLEX MAP UPDATE</p><button id="btn-conn" onclick="connectToCloud()">DÉPLOIEMENT</button></div></div>
 
 <div id="ui">
     <div class="hud-panel"><div style="font-size:24px; font-weight:bold;">SCORE: <span id="score">0</span></div></div><br>
@@ -135,7 +135,7 @@ function playSound(type, vol=0.1) {
 
 function initGame() {
     scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x000510, 0.01);
+    scene.fog = new THREE.FogExp2(0x000510, 0.012);
     camera = new THREE.PerspectiveCamera(80, window.innerWidth/window.innerHeight, 0.1, 1000);
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -147,7 +147,7 @@ function initGame() {
     playerGroup = createPlayerMesh(0x00d4ff);
     scene.add(playerGroup);
     
-    for(let i=0; i<5; i++) spawnBot();
+    for(let i=0; i<8; i++) spawnBot();
     setupInputs();
     loop();
 }
@@ -160,20 +160,48 @@ function createPlayerMesh(col) {
     g.add(b, h); return g;
 }
 
+// --- LOGIQUE DE MAP COMPLEXE ---
 function buildMap() {
-    const grid = new THREE.GridHelper(800, 80, 0x0033aa, 0x050510); scene.add(grid);
-    createWall(0, 0, 0, 15, 15, 4, 0x00ffcc);
-    const towerPos = [[80,80], [-80,80], [80,-80], [-80,-80]];
-    towerPos.forEach(p => {
-        createWall(p[0], 0, p[1], 16, 16, 25, 0x112233); 
-        createWall(p[0], 25, p[1], 18, 18, 1, 0x00d4ff); 
-        createJumpPad(p[0], 0, p[1] > 0 ? p[1]-12 : p[1]+12); 
+    const grid = new THREE.GridHelper(1000, 100, 0x0033aa, 0x050510); scene.add(grid);
+    
+    // 1. CENTRE : Plateforme & Pilier
+    createWall(0, 0, 0, 30, 30, 6, 0x111122); // Base centrale
+    createWall(0, 6, 0, 10, 10, 20, 0x00d4ff); // Pilier central brillant
+    createJumpPad(0, 0, 20); createJumpPad(0, 0, -20); // Accès centre
+
+    // 2. LES 4 QUARTIERS (Bâtiments tactiques)
+    const sectors = [
+        {x: 60, z: 60, col: 0xff0055}, 
+        {x: -60, z: 60, col: 0x00ffcc},
+        {x: 60, z: -60, col: 0xffff00},
+        {x: -60, z: -60, col: 0xff00ff}
+    ];
+
+    sectors.forEach(s => {
+        // Bâtiment principal de secteur
+        createWall(s.x, 0, s.z, 25, 25, 15, 0x112233);
+        // Corniche
+        createWall(s.x, 15, s.z, 28, 28, 1, s.col);
+        // Mur de protection sur le toit
+        createWall(s.x + 10, 16, s.z, 2, 20, 3, 0x222222);
+        // Jump Pad pour monter au bâtiment
+        createJumpPad(s.x > 0 ? s.x-20 : s.x+20, 0, s.z);
     });
-    for(let i=0; i<8; i++) createWall(-60 + i*15, 0, 60, 3, 25, 8, 0xff0055);
-    createWall(0, 0, 160, 320, 5, 40, 0x050510);
-    createWall(0, 0, -160, 320, 5, 40, 0x050510);
-    createWall(160, 0, 0, 5, 320, 40, 0x050510);
-    createWall(-160, 0, 0, 5, 320, 40, 0x050510);
+
+    // 3. COUVERTURES TACTIQUES (Crates et Murs bas)
+    for(let i=0; i<15; i++) {
+        let rx = (Math.random()-0.5)*200;
+        let rz = (Math.random()-0.5)*200;
+        if(Math.abs(rx) < 20 && Math.abs(rz) < 20) rx += 40; // Eviter le centre
+        createWall(rx, 0, rz, 4, 4, 4, 0x00d4ff);
+    }
+
+    // 4. MURS EXTÉRIEURS (Limites)
+    const limit = 200;
+    createWall(0, 0, limit, limit*2, 10, 50, 0x050510);
+    createWall(0, 0, -limit, limit*2, 10, 50, 0x050510);
+    createWall(limit, 0, 0, 10, limit*2, 50, 0x050510);
+    createWall(-limit, 0, 0, 10, limit*2, 50, 0x050510);
 }
 
 function createWall(x, y, z, w, d, h, color = 0x112233) {
@@ -196,7 +224,7 @@ function createJumpPad(x, y, z) {
 
 function spawnBot() {
     const bot = { id: "Bot-" + Math.floor(Math.random()*1000), mesh: createPlayerMesh(0xffff00), hp: 80, lastShoot: 0, dir: new THREE.Vector3(Math.random()-0.5, 0, Math.random()-0.5).normalize(), changeDirAt: Date.now() + 2000 };
-    bot.mesh.position.set((Math.random()-0.5)*120, 0, (Math.random()-0.5)*120); scene.add(bot.mesh); bots.push(bot);
+    bot.mesh.position.set((Math.random()-0.5)*180, 0, (Math.random()-0.5)*180); scene.add(bot.mesh); bots.push(bot);
 }
 
 function switchWeapon(idx) {
@@ -227,19 +255,14 @@ function loop() {
         }
     });
 
-    // --- LOGIQUE DE MOUVEMENT MISE À JOUR (Z/W/FlècheHaut, S/FlècheBas, etc.) ---
     const isCrouch = keysDown['KeyC'] || keysDown['ControlLeft'];
     let moveSpeed = 32;
     if(keysDown['ShiftLeft'] && now - lastDash > 1500) { lastDash = now; moveSpeed = 130; shakeTime = 5; }
 
     const move = new THREE.Vector3();
-    // Avancer
     if(keysDown['KeyW'] || keysDown['ArrowUp']) move.add(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
-    // Reculer
     if(keysDown['KeyS'] || keysDown['ArrowDown']) move.sub(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
-    // Gauche
     if(keysDown['KeyA'] || keysDown['ArrowLeft']) move.add(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
-    // Droite
     if(keysDown['KeyD'] || keysDown['ArrowRight']) move.sub(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
 
     if(isMobile) {
@@ -258,7 +281,7 @@ function loop() {
     // Jump Pads check
     jumpPads.forEach(pad => {
         let d = Math.sqrt((playerGroup.position.x-pad.x)**2 + (playerGroup.position.z-pad.z)**2);
-        if(d < pad.radius && playerGroup.position.y < 2) { vy = 65; playSound('jump', 0.4); }
+        if(d < pad.radius && Math.abs(playerGroup.position.y - 0.25) < 2) { vy = 60; playSound('jump', 0.4); }
     });
 
     vy += GRAVITY * dt; 
@@ -269,7 +292,7 @@ function loop() {
     else {
         walls.forEach(w => {
             if (playerGroup.position.x > w.minX && playerGroup.position.x < w.maxX && playerGroup.position.z > w.minZ && playerGroup.position.z < w.maxZ) {
-                if (playerGroup.position.y <= w.maxY && playerGroup.position.y > w.maxY - 3 && vy <= 0) {
+                if (playerGroup.position.y <= w.maxY && playerGroup.position.y > w.maxY - 4 && vy <= 0) {
                     playerGroup.position.y = w.maxY; vy = 0; onObject = true;
                 }
             }
