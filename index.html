@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Strike - DAMAGE FIX UPDATE</title>
+    <title>Neon Strike - SMOOTH SYNC UPDATE</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
@@ -46,7 +46,7 @@
 </head>
 <body>
 
-<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">STRIKE</span></h1><p style="color:#888; margin-bottom:20px;">DAMAGE FIX APPLIED</p><button id="btn-conn" onclick="connectToCloud()">DÉPLOIEMENT</button></div></div>
+<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">STRIKE</span></h1><p style="color:#888; margin-bottom:20px;">SYNC OPTIMIZED</p><button id="btn-conn" onclick="connectToCloud()">DÉPLOIEMENT</button></div></div>
 
 <div id="ui">
     <div class="hud-panel"><div style="font-size:24px; font-weight:bold;">SCORE: <span id="score">0</span></div></div><br>
@@ -264,14 +264,15 @@ function loop() {
         if(!checkWall(playerGroup.position.x, playerGroup.position.y + 1, nextZ)) playerGroup.position.z = nextZ;
     }
     
+    // Jump Pads
     jumpPads.forEach(pad => {
         let d = Math.sqrt((playerGroup.position.x-pad.x)**2 + (playerGroup.position.z-pad.z)**2);
         if(d < pad.radius && Math.abs(playerGroup.position.y - 0.25) < 2) { vy = 60; playSound('jump', 0.4); }
     });
 
+    // Physique
     vy += GRAVITY * dt; 
     playerGroup.position.y += vy * dt;
-    
     let onObject = false;
     if (playerGroup.position.y <= 0) { playerGroup.position.y = 0; vy = 0; onObject = true; }
     else {
@@ -283,42 +284,45 @@ function loop() {
             }
         });
     }
-
     if(onObject) { canJump = true; jumpCount = 0; }
     playerGroup.rotation.y = yaw;
 
-    // --- MISE À JOUR DÉTECTION COLLISION BALLES ---
+    // INTERPOLATION DES AUTRES JOUEURS (Smoothing)
+    for(let id in otherPlayers) {
+        const p = otherPlayers[id];
+        p.mesh.position.lerp(p.targetPos, 0.2); // Glissement fluide vers la cible
+        p.mesh.rotation.y += (p.targetRy - p.mesh.rotation.y) * 0.2;
+    }
+
+    // Balles
     for(let i=bullets.length-1; i>=0; i--) {
-        const b = bullets[i]; 
-        b.mesh.position.addScaledVector(b.dir, b.speed * dt);
-        
+        const b = bullets[i]; b.mesh.position.addScaledVector(b.dir, b.speed * dt);
         if(checkWall(b.mesh.position.x, b.mesh.position.y, b.mesh.position.z)) { scene.remove(b.mesh); bullets.splice(i,1); continue; }
-        
-        if(b.o === myID) { // Mes balles touchent les bots
+        if(b.o === myID) {
             bots.forEach((bot, botIdx) => {
                 if(b.mesh.position.distanceTo(bot.mesh.position.clone().add(new THREE.Vector3(0,1.2,0))) < 3.0) {
                     bot.hp -= b.dmg; triggerHitMarker(); scene.remove(b.mesh); bullets.splice(i,1);
                     if(bot.hp <= 0) { addKillFeed("Toi", "Bot"); scene.remove(bot.mesh); bots.splice(botIdx, 1); setTimeout(spawnBot, 5000); }
                 }
             });
-        } else { // Balles des autres ou des bots me touchent
+        } else {
             const distToPlayer = b.mesh.position.distanceTo(playerGroup.position.clone().add(new THREE.Vector3(0,1.2,0)));
-            if(distToPlayer < 2.5) { // Rayon de détection augmenté
-                takeDamage(b.dmg, b.o); 
-                scene.remove(b.mesh); 
-                bullets.splice(i,1);
-                continue;
-            }
+            if(distToPlayer < 2.5) { takeDamage(b.dmg, b.o); scene.remove(b.mesh); bullets.splice(i,1); continue; }
         }
-        
         if(bullets[i] && now > b.death) { scene.remove(b.mesh); bullets.splice(i,1); }
     }
 
+    // Caméra
     const camHeight = (isSniper ? 1.8 : 8); const camDist = isSniper ? 0 : 13;
     camera.position.lerp(new THREE.Vector3(playerGroup.position.x - Math.sin(yaw) * camDist, playerGroup.position.y + camHeight + (shakeTime > 0 ? Math.random() : 0), playerGroup.position.z - Math.cos(yaw) * camDist), 0.2);
     camera.lookAt(playerGroup.position.x, playerGroup.position.y + 2.5, playerGroup.position.z);
+    
+    // SYNC FREQUENCY UPDATE (Maintenant 50ms pour plus de réactivité)
     if(shakeTime > 0) shakeTime--;
-    if(now - lastSync > 100) { channel.publish('p', { t:'m', o:myID, x:playerGroup.position.x, y:playerGroup.position.y, z:playerGroup.position.z, ry:yaw }); lastSync = now; }
+    if(now - lastSync > 50) { 
+        channel.publish('p', { t:'m', o:myID, x:playerGroup.position.x, y:playerGroup.position.y, z:playerGroup.position.z, ry:yaw }); 
+        lastSync = now; 
+    }
     renderer.render(scene, camera);
 }
 
@@ -330,8 +334,7 @@ function shoot() {
     shakeTime = w.name.includes("Railgun") ? 12 : 5; playSound('shoot');
     for(let i=0; i<w.count; i++) {
         const spreadX = (Math.random()-0.5) * w.spread;
-        const spreadY = (Math.random()-0.5) * w.spread;
-        const d = { t:'f', o:myID, x:playerGroup.position.x, y:playerGroup.position.y+1.8, z:playerGroup.position.z, dx:Math.sin(yaw+spreadX), dy:spreadY, dz:Math.cos(yaw+spreadX), spd:w.speed, dmg:w.dmg, col:w.color };
+        const d = { t:'f', o:myID, x:playerGroup.position.x, y:playerGroup.position.y+1.8, z:playerGroup.position.z, dx:Math.sin(yaw+spreadX), dy:(Math.random()-0.5)*w.spread, dz:Math.cos(yaw+spreadX), spd:w.speed, dmg:w.dmg, col:w.color };
         channel.publish('p', d); createBullet(d);
     }
 }
@@ -350,17 +353,25 @@ function takeDamage(d, id) {
     document.getElementById('health-bar').style.width = Math.max(0, hp) + "%"; 
     playSound('hit', 0.4);
     if(hp <= 0) { 
-        hp = 100; 
-        document.getElementById('health-bar').style.width = "100%";
+        hp = 100; document.getElementById('health-bar').style.width = "100%";
         playerGroup.position.set(45, 0, 45); 
-        score = Math.max(0, score - 50); 
-        document.getElementById('score').textContent = score; 
+        score = Math.max(0, score - 50); document.getElementById('score').textContent = score; 
         addKillFeed(id, "Toi");
     } 
 }
 
 function addKillFeed(k,v) { const d=document.createElement('div'); d.className='kill-item'; d.innerHTML=`${k} 🔪 ${v}`; document.getElementById('kill-feed').prepend(d); if(k==="Toi"){score+=100; document.getElementById('score').textContent=score;} }
-function updateRemote(d) { if(!otherPlayers[d.o]) { otherPlayers[d.o]={mesh:createPlayerMesh(0xff0055)}; scene.add(otherPlayers[d.o].mesh); } otherPlayers[d.o].mesh.position.set(d.x,d.y,d.z); otherPlayers[d.o].mesh.rotation.y=d.ry; }
+
+function updateRemote(d) { 
+    if(!otherPlayers[d.o]) { 
+        otherPlayers[d.o]={ mesh: createPlayerMesh(0xff0055), targetPos: new THREE.Vector3(d.x, d.y, d.z), targetRy: d.ry }; 
+        scene.add(otherPlayers[d.o].mesh); 
+    } 
+    // Mise à jour de la destination cible pour l'interpolation
+    otherPlayers[d.o].targetPos.set(d.x, d.y, d.z);
+    otherPlayers[d.o].targetRy = d.ry;
+}
+
 function removeRemote(id) { if(otherPlayers[id]) { scene.remove(otherPlayers[id].mesh); delete otherPlayers[id]; } }
 function checkWall(x,y,z) { return walls.some(w => x>w.minX && x<w.maxX && z>w.minZ && z<w.maxZ && y>=w.minY && y<=w.maxY); }
 
