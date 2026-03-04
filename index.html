@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Strike - HEALTH BARS UPDATE</title>
+    <title>Neon Strike - BOTS AGGRESSION UPDATE</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
@@ -51,7 +51,7 @@
 </head>
 <body>
 
-<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">STRIKE</span></h1><p style="color:#888; margin-bottom:20px;">HEALTH BARS UPDATE</p><button id="btn-conn" onclick="connectToCloud()">DÉPLOIEMENT</button></div></div>
+<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">STRIKE</span></h1><p style="color:#888; margin-bottom:20px;">BOTS AGGRESSION UPDATE</p><button id="btn-conn" onclick="connectToCloud()">DÉPLOIEMENT</button></div></div>
 
 <div id="ui">
     <div class="hud-panel"><div style="font-size:24px; font-weight:bold;">SCORE: <span id="score">0</span></div></div><br>
@@ -162,7 +162,7 @@ function initGame() {
     scene.add(new THREE.AmbientLight(0xffffff, 0.4));
     
     buildMap();
-    playerGroup = createPlayerMesh(0x00d4ff, false); // Pas de barre de vie pour soi-même en 3D
+    playerGroup = createPlayerMesh(0x00d4ff, false); 
     playerGroup.position.set(45, 0, 45);
     scene.add(playerGroup);
     
@@ -183,19 +183,16 @@ function createPlayerMesh(col, withHealthBar = true) {
         const backGeo = new THREE.PlaneGeometry(1.5, 0.2);
         const backMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
         const back = new THREE.Mesh(backGeo, backMat);
-        
         const frontGeo = new THREE.PlaneGeometry(1.5, 0.2);
         const frontMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
         const front = new THREE.Mesh(frontGeo, frontMat);
         front.position.z = 0.01;
-        
         hbGroup.add(back, front);
         hbGroup.position.y = 2.8;
         g.add(hbGroup);
         g.healthBar = front;
         g.healthBarGroup = hbGroup;
     }
-
     return g;
 }
 
@@ -244,8 +241,18 @@ function createJumpPad(x, y, z) {
 }
 
 function spawnBot() {
-    const bot = { id: "Bot-" + Math.floor(Math.random()*1000), mesh: createPlayerMesh(0xffff00, true), hp: 80, maxHp: 80, lastShoot: 0, dir: new THREE.Vector3(Math.random()-0.5, 0, Math.random()-0.5).normalize(), changeDirAt: Date.now() + 2000 };
-    bot.mesh.position.set((Math.random()-0.5)*180, 0, (Math.random()-0.5)*180); scene.add(bot.mesh); bots.push(bot);
+    const bot = { 
+        id: "Bot-" + Math.floor(Math.random()*1000), 
+        mesh: createPlayerMesh(0xffff00, true), 
+        hp: 80, 
+        maxHp: 80, 
+        lastShoot: 0, 
+        dir: new THREE.Vector3(Math.random()-0.5, 0, Math.random()-0.5).normalize(), 
+        changeDirAt: Date.now() + 2000 
+    };
+    bot.mesh.position.set((Math.random()-0.5)*180, 0, (Math.random()-0.5)*180); 
+    scene.add(bot.mesh); 
+    bots.push(bot);
 }
 
 function switchWeapon(idx) {
@@ -277,12 +284,37 @@ function loop() {
 
     // Bots Logic
     bots.forEach(bot => {
-        if (now > bot.changeDirAt) { bot.dir.set(Math.random()-0.5, 0, Math.random()-0.5).normalize(); bot.changeDirAt = now + 2000 + Math.random()*3000; }
-        const nextX = bot.mesh.position.x + bot.dir.x * 12 * dt; const nextZ = bot.mesh.position.z + bot.dir.z * 12 * dt;
-        if (!checkWall(nextX, bot.mesh.position.y + 1, nextZ)) { bot.mesh.position.x = nextX; bot.mesh.position.z = nextZ; }
-        bot.mesh.rotation.y = Math.atan2(bot.dir.x, bot.dir.z);
+        const distToPlayer = bot.mesh.position.distanceTo(playerGroup.position);
         
-        // Update Bot Health Bar Billboarding
+        if (distToPlayer < 50) {
+            // Le bot regarde le joueur et tire
+            bot.mesh.lookAt(playerGroup.position.x, 0, playerGroup.position.z);
+            if (now - bot.lastShoot > 1500) { // Un tir toutes les 1.5 secondes
+                bot.lastShoot = now;
+                const dir = playerGroup.position.clone().sub(bot.mesh.position).normalize();
+                const d = { 
+                    t:'f', o: bot.id, x:bot.mesh.position.x, y:bot.mesh.position.y+1.8, z:bot.mesh.position.z, 
+                    dx:dir.x, dy:dir.y, dz:dir.z, 
+                    spd:120, dmg:10, col:0xffff00 
+                };
+                createBullet(d);
+                playSound('laser', 0.1);
+            }
+        } else {
+            // Le bot patrouille
+            if (now > bot.changeDirAt) { 
+                bot.dir.set(Math.random()-0.5, 0, Math.random()-0.5).normalize(); 
+                bot.changeDirAt = now + 2000 + Math.random()*3000; 
+            }
+            const nextX = bot.mesh.position.x + bot.dir.x * 12 * dt; 
+            const nextZ = bot.mesh.position.z + bot.dir.z * 12 * dt;
+            if (!checkWall(nextX, bot.mesh.position.y + 1, nextZ)) { 
+                bot.mesh.position.x = nextX; 
+                bot.mesh.position.z = nextZ; 
+            }
+            bot.mesh.rotation.y = Math.atan2(bot.dir.x, bot.dir.z);
+        }
+        
         if(bot.mesh.healthBarGroup) bot.mesh.healthBarGroup.lookAt(camera.position);
     });
 
@@ -332,7 +364,6 @@ function loop() {
         const p = otherPlayers[id];
         p.mesh.position.lerp(p.targetPos, 0.2);
         p.mesh.rotation.y += (p.targetRy - p.mesh.rotation.y) * 0.2;
-        // Billboarding barre de vie joueurs distants
         if(p.mesh.healthBarGroup) p.mesh.healthBarGroup.lookAt(camera.position);
     }
 
@@ -340,19 +371,24 @@ function loop() {
     for(let i=bullets.length-1; i>=0; i--) {
         const b = bullets[i]; b.mesh.position.addScaledVector(b.dir, b.speed * dt);
         if(checkWall(b.mesh.position.x, b.mesh.position.y, b.mesh.position.z)) { scene.remove(b.mesh); bullets.splice(i,1); continue; }
+        
         if(b.o === myID) {
             bots.forEach((bot, botIdx) => {
                 if(b.mesh.position.distanceTo(bot.mesh.position.clone().add(new THREE.Vector3(0,1.2,0))) < 3.0) {
                     bot.hp -= b.dmg; triggerHitMarker(); scene.remove(b.mesh); bullets.splice(i,1);
-                    // Update Bot Health Bar Mesh
                     if(bot.mesh.healthBar) bot.mesh.healthBar.scale.x = Math.max(0, bot.hp / bot.maxHp);
-                    
                     if(bot.hp <= 0) { addKillFeed("Toi", "Bot"); scene.remove(bot.mesh); bots.splice(botIdx, 1); setTimeout(spawnBot, 5000); }
                 }
             });
         } else {
+            // Balles ennemies (bots ou joueurs) qui touchent le joueur local
             const distToPlayer = b.mesh.position.distanceTo(playerGroup.position.clone().add(new THREE.Vector3(0,1.2,0)));
-            if(distToPlayer < 2.5) { takeDamage(b.dmg, b.o); scene.remove(b.mesh); bullets.splice(i,1); continue; }
+            if(distToPlayer < 2.5) { 
+                takeDamage(b.dmg, b.o); 
+                scene.remove(b.mesh); 
+                bullets.splice(i,1); 
+                continue; 
+            }
         }
         if(bullets[i] && now > b.death) { scene.remove(b.mesh); bullets.splice(i,1); }
     }
@@ -451,7 +487,6 @@ function updateRemote(d) {
     p.targetPos.set(d.x, d.y, d.z);
     p.targetRy = d.ry;
     p.score = d.score;
-    // Mise à jour de la barre de vie du joueur distant
     if(p.mesh.healthBar) p.mesh.healthBar.scale.x = Math.max(0, d.hp / 100);
 }
 
