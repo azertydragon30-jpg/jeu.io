@@ -3,11 +3,11 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Strike - SNIPER EXCLUSIVE AIM</title>
+    <title>Neon Strike - MOBILE STABILITY UPDATE</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
-        html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: #fff; font-family: 'Segoe UI', sans-serif; user-select: none; -webkit-touch-callout: none; }
+        html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: #fff; font-family: 'Segoe UI', sans-serif; user-select: none; -webkit-touch-callout: none; touch-action: none; }
         #ui { position: absolute; top: 10px; left: 10px; pointer-events: none; width: 100%; z-index: 10; }
         .hud-panel { background: rgba(0,0,0,0.6); padding: 10px; border-left: 4px solid #00d4ff; margin-bottom: 5px; backdrop-filter: blur(4px); display: inline-block; }
         #health-bar-bg { width: 200px; height: 15px; background: #333; margin-top: 5px; transform: skewX(-20deg); border: 1px solid #555; }
@@ -42,7 +42,7 @@
         #stick { position: absolute; top: 50%; left: 50%; width: 50px; height: 50px; background: rgba(0, 212, 255, 0.5); border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; }
         #look-zone { position: absolute; top: 0; right: 0; width: 50%; height: 100%; pointer-events: auto; z-index: 40; }
         .mob-btn { position: absolute; width: 70px; height: 70px; background: rgba(0,0,0,0.5); border: 2px solid #fff; border-radius: 50%; color: #fff; font-size: 24px; display: flex; align-items: center; justify-content: center; pointer-events: auto; touch-action: manipulation; user-select: none; }
-        .mob-btn:active { background: #00d4ff; color: #000; transform: scale(0.95); }
+        .mob-btn:active { background: #00d4ff; color: #000; transform: scale(0.9); }
         #btn-fire { bottom: 60px; right: 40px; width: 90px; height: 90px; border-color: #ff0055; background: rgba(255,0,85,0.2); font-size: 40px; z-index: 60; }
         #btn-jump { bottom: 180px; right: 40px; z-index: 60; }
         #btn-scope { bottom: 60px; right: 150px; font-size: 20px; z-index: 60; opacity: 0.3; }
@@ -51,7 +51,7 @@
 </head>
 <body>
 
-<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">STRIKE</span></h1><p style="color:#888; margin-bottom:20px;">SNIPER MODE RESTRICTION ACTIVE</p><button id="btn-conn" onclick="connectToCloud()">DÉPLOIEMENT</button></div></div>
+<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">STRIKE</span></h1><p style="color:#888; margin-bottom:20px;">MOBILE OPTIMIZED VERSION</p><button id="btn-conn" onclick="connectToCloud()">DÉPLOIEMENT</button></div></div>
 
 <div id="ui">
     <div class="hud-panel"><div style="font-size:24px; font-weight:bold;">SCORE: <span id="score">0</span></div></div><br>
@@ -76,10 +76,10 @@
 <div id="mobile-controls">
     <div id="stick-container" class="touch-zone"><div id="stick"></div></div>
     <div id="look-zone"></div>
-    <div id="btn-fire" class="mob-btn" ontouchstart="startFire(event)" ontouchend="stopFire(event)">🔥</div>
-    <div id="btn-jump" class="mob-btn" ontouchstart="jump(event)">⬆️</div>
-    <div id="btn-scope" class="mob-btn" ontouchstart="toggleScope(event)">🎯</div>
-    <div id="btn-swap" class="mob-btn" ontouchstart="cycleWeapon(event)">SWAP</div>
+    <div id="btn-fire" class="mob-btn">🔥</div>
+    <div id="btn-jump" class="mob-btn">⬆️</div>
+    <div id="btn-scope" class="mob-btn">🎯</div>
+    <div id="btn-swap" class="mob-btn">SWAP</div>
 </div>
 
 <script>
@@ -101,7 +101,7 @@ let currentWeaponIdx = 0;
 
 async function connectToCloud() {
     const btn = document.getElementById('btn-conn');
-    btn.textContent = "CONNEXION..."; btn.disabled = true;
+    btn.textContent = "CHARGEMENT..."; btn.disabled = true;
     checkMobile();
     myID = "Ghost-" + Math.floor(Math.random()*999);
     initAudio(); 
@@ -120,7 +120,10 @@ async function connectToCloud() {
 
 function checkMobile() {
     isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 800;
-    if (isMobile) { document.getElementById('mobile-controls').style.display = 'block'; setupTouchControls(); }
+    if (isMobile) { 
+        document.getElementById('mobile-controls').style.display = 'block'; 
+        setupTouchControls(); 
+    }
 }
 
 function handleMessage(m) {
@@ -132,7 +135,11 @@ function handleMessage(m) {
     else if (d.t === 'k') addKillFeed(d.killer, d.victim);
 }
 
-function initAudio() { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+function initAudio() { 
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); 
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
 function playSound(type, vol=0.1) {
     if(!audioCtx) return;
     const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
@@ -149,6 +156,7 @@ function initGame() {
     camera = new THREE.PerspectiveCamera(80, window.innerWidth/window.innerHeight, 0.1, 1000);
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setClearColor(0x000510);
     document.body.appendChild(renderer.domElement);
     scene.add(new THREE.AmbientLight(0xffffff, 0.4));
@@ -190,7 +198,6 @@ function buildMap() {
         if(Math.abs(rx) < 25 && Math.abs(rz) < 25) rx += 50; 
         createWall(rx, 0, rz, 4, 4, 4, 0x00d4ff);
     }
-
     const limit = 200;
     createWall(0, 0, limit, limit*2, 10, 50, 0x050510);
     createWall(0, 0, -limit, limit*2, 10, 50, 0x050510);
@@ -226,17 +233,12 @@ function switchWeapon(idx) {
     currentWeaponIdx = idx;
     document.getElementById('weapon-info').textContent = WEAPONS[idx].name;
     document.getElementById('ammo-val').textContent = WEAPONS[idx].ammo;
-    
-    // Si on change d'arme, on force l'arrêt du mode Sniper
     if (isSniper) toggleScope();
-    
-    // Feedback visuel bouton sniper mobile
     document.getElementById('btn-scope').style.opacity = (idx === 2) ? "1" : "0.3";
-    
     playSound('jump', 0.05);
 }
 
-function cycleWeapon(e) { if(e) e.preventDefault(); switchWeapon((currentWeaponIdx + 1) % WEAPONS.length); }
+function cycleWeapon(e) { if(e && e.preventDefault) e.preventDefault(); switchWeapon((currentWeaponIdx + 1) % WEAPONS.length); }
 
 function updateLeaderboard() {
     let players = [{ id: "Toi", s: score, me: true }];
@@ -244,10 +246,7 @@ function updateLeaderboard() {
     players.sort((a, b) => b.s - a.s);
     const list = document.getElementById('leaderboard-list');
     list.innerHTML = players.slice(0, 5).map(p => `
-        <div class="leader-item ${p.me ? 'is-me' : ''}">
-            <span>${p.id}</span>
-            <span>${p.s}</span>
-        </div>
+        <div class="leader-item ${p.me ? 'is-me' : ''}"><span>${p.id}</span><span>${p.s}</span></div>
     `).join('');
 }
 
@@ -281,8 +280,8 @@ function loop() {
     if(keysDown['KeyD'] || keysDown['ArrowRight']) move.sub(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
 
     if(isMobile) {
-        move.add(new THREE.Vector3(Math.sin(yaw) * -touchMove.y * 0.5, 0, Math.cos(yaw) * -touchMove.y * 0.5));
-        move.add(new THREE.Vector3(Math.cos(yaw) * touchMove.x * 0.5, 0, -Math.sin(yaw) * touchMove.x * 0.5));
+        move.add(new THREE.Vector3(Math.sin(yaw) * -touchMove.y * 1.5, 0, Math.cos(yaw) * -touchMove.y * 1.5));
+        move.add(new THREE.Vector3(Math.cos(yaw) * touchMove.x * 1.5, 0, -Math.sin(yaw) * touchMove.x * 1.5));
     }
 
     if(move.length() > 0) {
@@ -339,15 +338,13 @@ function loop() {
         if(bullets[i] && now > b.death) { scene.remove(b.mesh); bullets.splice(i,1); }
     }
 
-    // GESTION DU PITCH UNIQUEMENT EN SNIPER
     if(!isSniper && pitch !== 0) {
-        pitch *= 0.8; // Retour progressif à l'horizontale
+        pitch *= 0.8;
         if(Math.abs(pitch) < 0.001) pitch = 0;
     }
 
     const camHeight = (isSniper ? 1.8 : 8); 
     const camDist = isSniper ? 0 : 13;
-    
     const lookAtX = playerGroup.position.x + Math.sin(yaw) * Math.cos(pitch);
     const lookAtY = playerGroup.position.y + camHeight + Math.sin(pitch);
     const lookAtZ = playerGroup.position.z + Math.cos(yaw) * Math.cos(pitch);
@@ -357,7 +354,6 @@ function loop() {
         playerGroup.position.y + camHeight - Math.sin(pitch) * camDist + (shakeTime > 0 ? (Math.random()-0.5) : 0), 
         playerGroup.position.z - Math.cos(yaw) * camDist * Math.cos(pitch)
     ), 0.2);
-
     camera.lookAt(lookAtX, lookAtY, lookAtZ);
     
     if(shakeTime > 0) shakeTime--;
@@ -388,15 +384,13 @@ function shoot() {
     }
 }
 
-function jump(e) { if(e) e.preventDefault(); if (jumpCount < 2) { vy = JUMP_FORCE; jumpCount++; playSound('jump', 0.15); } }
-function startFire(e) { e.preventDefault(); isFiring = true; shoot(); }
-function stopFire(e) { e.preventDefault(); isFiring = false; }
+function jump(e) { if(e && e.preventDefault) e.preventDefault(); if (jumpCount < 2) { vy = JUMP_FORCE; jumpCount++; playSound('jump', 0.15); } }
+function startFire(e) { if(e && e.preventDefault) e.preventDefault(); initAudio(); isFiring = true; shoot(); }
+function stopFire(e) { if(e && e.preventDefault) e.preventDefault(); isFiring = false; }
 
 function toggleScope(e) { 
-    if(e) e.preventDefault(); 
-    // NE PEUT ACTIVER LE SCOPE QUE SI ON A LE SNIPER (INDEX 2)
+    if(e && e.preventDefault) e.preventDefault(); 
     if(currentWeaponIdx !== 2) return;
-
     if(!isSniper) { 
         isSniper=true; camera.fov=12; camera.updateProjectionMatrix(); 
         document.getElementById('sniper-scope').style.display='block'; 
@@ -404,13 +398,12 @@ function toggleScope(e) {
     } else { 
         isSniper=false; camera.fov=80; camera.updateProjectionMatrix(); 
         document.getElementById('sniper-scope').style.display='none'; 
-        playerGroup.visible=true; 
-        pitch = 0; // Reset automatique de la vue
+        playerGroup.visible=true; pitch = 0; 
     } 
 }
 
 function triggerHitMarker() { const hm = document.getElementById('hit-marker'); hm.style.opacity = 1; setTimeout(() => { hm.style.opacity = 0; }, 150); }
-function reload(e) { if(e) e.preventDefault(); if(!isReloading){ isReloading=true; document.getElementById('reload-msg').style.display='block'; setTimeout(()=>{WEAPONS[currentWeaponIdx].ammo=WEAPONS[currentWeaponIdx].maxAmmo; document.getElementById('ammo-val').textContent=WEAPONS[currentWeaponIdx].ammo; isReloading=false; document.getElementById('reload-msg').style.display='none';},2000); } }
+function reload(e) { if(e && e.preventDefault) e.preventDefault(); if(!isReloading){ isReloading=true; document.getElementById('reload-msg').style.display='block'; setTimeout(()=>{WEAPONS[currentWeaponIdx].ammo=WEAPONS[currentWeaponIdx].maxAmmo; document.getElementById('ammo-val').textContent=WEAPONS[currentWeaponIdx].ammo; isReloading=false; document.getElementById('reload-msg').style.display='none';},2000); } }
 function createBullet(d) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.2,0.2,0.8), new THREE.MeshBasicMaterial({color:d.col})); m.position.set(d.x,d.y,d.z); m.lookAt(d.x+d.dx, d.y+d.dy, d.z+d.dz); scene.add(m); bullets.push({mesh:m, dir:new THREE.Vector3(d.dx,d.dy,d.dz), speed:d.spd, dmg:d.dmg, col:d.col, o:d.o, death:Date.now()+2000}); }
 
 function takeDamage(d, id) { 
@@ -419,9 +412,7 @@ function takeDamage(d, id) {
     playSound('hit', 0.4);
     if(hp <= 0) { 
         hp = 100; document.getElementById('health-bar').style.width = "100%";
-        playerGroup.position.set(45, 0, 45); 
-        score = Math.max(0, score - 50); document.getElementById('score').textContent = score; 
-        addKillFeed(id, "Toi");
+        playerGroup.position.set(45, 0, 45); score = Math.max(0, score - 50); document.getElementById('score').textContent = score; addKillFeed(id, "Toi");
     } 
 }
 
@@ -440,7 +431,6 @@ function updateRemote(d) {
     otherPlayers[d.o].targetPos.set(d.x, d.y, d.z);
     otherPlayers[d.o].targetRy = d.ry;
     otherPlayers[d.o].targetRp = d.rp || 0;
-    otherPlayers[d.o].score = d.score || 0;
 }
 
 function removeRemote(id) { if(otherPlayers[id]) { scene.remove(otherPlayers[id].mesh); delete otherPlayers[id]; } }
@@ -449,51 +439,44 @@ function checkWall(x,y,z) { return walls.some(w => x>w.minX && x<w.maxX && z>w.m
 function setupInputs() {
     window.onkeydown=e=>{ keysDown[e.code]=true; if(e.code==='KeyR') reload(); if(e.code==='Space') jump(); if(e.code==='Digit1') switchWeapon(0); if(e.code==='Digit2') switchWeapon(1); if(e.code==='Digit3') switchWeapon(2); }; 
     window.onkeyup=e=>keysDown[e.code]=false;
-    
-    document.onmousemove=e=>{ 
-        if(document.pointerLockElement) {
-            // Yaw (gauche/droite) est toujours actif
-            yaw -= e.movementX * (isSniper ? 0.0005 : 0.003);
-            
-            // Pitch (haut/bas) SEULEMENT EN SNIPER
-            if(isSniper) {
-                pitch -= e.movementY * 0.0005;
-                pitch = Math.max(-Math.PI/2.5, Math.min(Math.PI/2.5, pitch));
-            }
-        } 
-    };
-    
-    window.onmousedown=()=>{ 
-        if(!isMobile) { 
-            if(document.pointerLockElement) {
-                if (window.event.button === 0) shoot(); 
-                if (window.event.button === 2) toggleScope();
-            } else { 
-                renderer.domElement.requestPointerLock(); 
-                initAudio(); 
-            } 
-        } 
-    };
+    document.onmousemove=e=>{ if(document.pointerLockElement) { yaw -= e.movementX * (isSniper ? 0.0005 : 0.003); if(isSniper) { pitch -= e.movementY * 0.0005; pitch = Math.max(-Math.PI/2.5, Math.min(Math.PI/2.5, pitch)); } } };
+    window.onmousedown=()=>{ if(!isMobile) { if(document.pointerLockElement) { if (window.event.button === 0) shoot(); if (window.event.button === 2) toggleScope(); } else { renderer.domElement.requestPointerLock(); initAudio(); } } };
     window.oncontextmenu = e => e.preventDefault();
 }
 
 function setupTouchControls() {
     const stickZone = document.getElementById('stick-container'), stick = document.getElementById('stick'), lookZone = document.getElementById('look-zone');
-    stickZone.addEventListener('touchmove', (e) => { e.preventDefault(); const t = e.touches[0], r = stickZone.getBoundingClientRect(), cx = r.left + r.width/2, cy = r.top + r.height/2; let dx = t.clientX - cx, dy = t.clientY - cy, dist = Math.sqrt(dx*dx + dy*dy); if(dist > 50) { dx = (dx/dist)*50; dy = (dy/dist)*50; } stick.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`; touchMove = { x: dx/50, y: dy/50 }; });
-    stickZone.addEventListener('touchend', (e) => { e.preventDefault(); stick.style.transform = `translate(-50%, -50%)`; touchMove = { x: 0, y: 0 }; });
-    let lx = 0, ly = 0; 
-    lookZone.addEventListener('touchstart', e => { lx = e.touches[0].clientX; ly = e.touches[0].clientY; });
+    const btnFire = document.getElementById('btn-fire'), btnJump = document.getElementById('btn-jump'), btnScope = document.getElementById('btn-scope'), btnSwap = document.getElementById('btn-swap');
+
+    stickZone.addEventListener('touchstart', (e) => { initAudio(); }, {passive:false});
+    stickZone.addEventListener('touchmove', (e) => { 
+        e.preventDefault(); 
+        const t = e.touches[0], r = stickZone.getBoundingClientRect(), cx = r.left + r.width/2, cy = r.top + r.height/2; 
+        let dx = t.clientX - cx, dy = t.clientY - cy, dist = Math.sqrt(dx*dx + dy*dy); 
+        if(dist > 50) { dx = (dx/dist)*50; dy = (dy/dist)*50; } 
+        stick.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`; 
+        touchMove = { x: dx/50, y: dy/50 }; 
+    }, {passive:false});
+    
+    stickZone.addEventListener('touchend', () => { stick.style.transform = `translate(-50%, -50%)`; touchMove = { x: 0, y: 0 }; });
+
+    let lx = 0, ly = 0, firstTouch = true;
+    lookZone.addEventListener('touchstart', e => { lx = e.touches[0].clientX; ly = e.touches[0].clientY; firstTouch = false; }, {passive:false});
     lookZone.addEventListener('touchmove', e => { 
         e.preventDefault(); 
+        if(firstTouch) return;
         const tx = e.touches[0].clientX, ty = e.touches[0].clientY; 
         const dx = tx - lx, dy = ty - ly; 
-        yaw -= dx * 0.005; 
-        if(isSniper) {
-            pitch -= dy * 0.002;
-            pitch = Math.max(-Math.PI/2.5, Math.min(Math.PI/2.5, pitch));
-        }
+        yaw -= dx * 0.008; 
+        if(isSniper) { pitch -= dy * 0.004; pitch = Math.max(-Math.PI/2.5, Math.min(Math.PI/2.5, pitch)); }
         lx = tx; ly = ty; 
-    });
+    }, {passive:false});
+
+    btnFire.addEventListener('touchstart', startFire, {passive:false});
+    btnFire.addEventListener('touchend', stopFire, {passive:false});
+    btnJump.addEventListener('touchstart', jump, {passive:false});
+    btnScope.addEventListener('touchstart', toggleScope, {passive:false});
+    btnSwap.addEventListener('touchstart', cycleWeapon, {passive:false});
 }
 </script>
 </body>
