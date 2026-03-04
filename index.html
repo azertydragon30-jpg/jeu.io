@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Strike - ADVANCED AIMING UPDATE</title>
+    <title>Neon Strike - SNIPER EXCLUSIVE AIM</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
@@ -45,13 +45,13 @@
         .mob-btn:active { background: #00d4ff; color: #000; transform: scale(0.95); }
         #btn-fire { bottom: 60px; right: 40px; width: 90px; height: 90px; border-color: #ff0055; background: rgba(255,0,85,0.2); font-size: 40px; z-index: 60; }
         #btn-jump { bottom: 180px; right: 40px; z-index: 60; }
-        #btn-scope { bottom: 60px; right: 150px; font-size: 20px; z-index: 60; }
+        #btn-scope { bottom: 60px; right: 150px; font-size: 20px; z-index: 60; opacity: 0.3; }
         #btn-swap { bottom: 270px; right: 40px; font-size: 16px; border-color: #00ffcc; z-index: 60; }
     </style>
 </head>
 <body>
 
-<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">STRIKE</span></h1><p style="color:#888; margin-bottom:20px;">PRECISION AIM ENABLED</p><button id="btn-conn" onclick="connectToCloud()">DÉPLOIEMENT</button></div></div>
+<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">STRIKE</span></h1><p style="color:#888; margin-bottom:20px;">SNIPER MODE RESTRICTION ACTIVE</p><button id="btn-conn" onclick="connectToCloud()">DÉPLOIEMENT</button></div></div>
 
 <div id="ui">
     <div class="hud-panel"><div style="font-size:24px; font-weight:bold;">SCORE: <span id="score">0</span></div></div><br>
@@ -226,7 +226,13 @@ function switchWeapon(idx) {
     currentWeaponIdx = idx;
     document.getElementById('weapon-info').textContent = WEAPONS[idx].name;
     document.getElementById('ammo-val').textContent = WEAPONS[idx].ammo;
-    if (idx !== 2 && isSniper) toggleScope();
+    
+    // Si on change d'arme, on force l'arrêt du mode Sniper
+    if (isSniper) toggleScope();
+    
+    // Feedback visuel bouton sniper mobile
+    document.getElementById('btn-scope').style.opacity = (idx === 2) ? "1" : "0.3";
+    
     playSound('jump', 0.05);
 }
 
@@ -333,11 +339,15 @@ function loop() {
         if(bullets[i] && now > b.death) { scene.remove(b.mesh); bullets.splice(i,1); }
     }
 
-    // Caméra avec GESTION DU PITCH (Visée Verticale)
+    // GESTION DU PITCH UNIQUEMENT EN SNIPER
+    if(!isSniper && pitch !== 0) {
+        pitch *= 0.8; // Retour progressif à l'horizontale
+        if(Math.abs(pitch) < 0.001) pitch = 0;
+    }
+
     const camHeight = (isSniper ? 1.8 : 8); 
     const camDist = isSniper ? 0 : 13;
     
-    // Calcul de la direction du regard
     const lookAtX = playerGroup.position.x + Math.sin(yaw) * Math.cos(pitch);
     const lookAtY = playerGroup.position.y + camHeight + Math.sin(pitch);
     const lookAtZ = playerGroup.position.z + Math.cos(yaw) * Math.cos(pitch);
@@ -384,14 +394,18 @@ function stopFire(e) { e.preventDefault(); isFiring = false; }
 
 function toggleScope(e) { 
     if(e) e.preventDefault(); 
+    // NE PEUT ACTIVER LE SCOPE QUE SI ON A LE SNIPER (INDEX 2)
+    if(currentWeaponIdx !== 2) return;
+
     if(!isSniper) { 
-        isSniper=true; camera.fov=15; camera.updateProjectionMatrix(); 
+        isSniper=true; camera.fov=12; camera.updateProjectionMatrix(); 
         document.getElementById('sniper-scope').style.display='block'; 
         playerGroup.visible=false; 
     } else { 
         isSniper=false; camera.fov=80; camera.updateProjectionMatrix(); 
         document.getElementById('sniper-scope').style.display='none'; 
         playerGroup.visible=true; 
+        pitch = 0; // Reset automatique de la vue
     } 
 }
 
@@ -438,11 +452,14 @@ function setupInputs() {
     
     document.onmousemove=e=>{ 
         if(document.pointerLockElement) {
-            const sens = isSniper ? 0.0008 : 0.003;
-            yaw -= e.movementX * sens;
-            pitch -= e.movementY * sens;
-            // Bloquer la vue pour ne pas faire de salto arrière
-            pitch = Math.max(-Math.PI/2.2, Math.min(Math.PI/2.2, pitch));
+            // Yaw (gauche/droite) est toujours actif
+            yaw -= e.movementX * (isSniper ? 0.0005 : 0.003);
+            
+            // Pitch (haut/bas) SEULEMENT EN SNIPER
+            if(isSniper) {
+                pitch -= e.movementY * 0.0005;
+                pitch = Math.max(-Math.PI/2.5, Math.min(Math.PI/2.5, pitch));
+            }
         } 
     };
     
@@ -450,14 +467,13 @@ function setupInputs() {
         if(!isMobile) { 
             if(document.pointerLockElement) {
                 if (window.event.button === 0) shoot(); 
-                if (window.event.button === 2) toggleScope(); // Clic droit pour sniper
+                if (window.event.button === 2) toggleScope();
             } else { 
                 renderer.domElement.requestPointerLock(); 
                 initAudio(); 
             } 
         } 
     };
-    // Empêcher le menu contextuel sur clic droit
     window.oncontextmenu = e => e.preventDefault();
 }
 
@@ -472,8 +488,10 @@ function setupTouchControls() {
         const tx = e.touches[0].clientX, ty = e.touches[0].clientY; 
         const dx = tx - lx, dy = ty - ly; 
         yaw -= dx * 0.005; 
-        pitch -= dy * 0.005;
-        pitch = Math.max(-Math.PI/2.2, Math.min(Math.PI/2.2, pitch));
+        if(isSniper) {
+            pitch -= dy * 0.002;
+            pitch = Math.max(-Math.PI/2.5, Math.min(Math.PI/2.5, pitch));
+        }
         lx = tx; ly = ty; 
     });
 }
