@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Strike - REGEN UPDATE</title>
+    <title>Neon Strike - MOBILE FIX UPDATE</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
@@ -51,7 +51,7 @@
 </head>
 <body>
 
-<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">STRIKE</span></h1><p style="color:#888; margin-bottom:20px;">REGENERATION UPDATE</p><button id="btn-conn" onclick="connectToCloud()">DÉPLOIEMENT</button></div></div>
+<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">STRIKE</span></h1><p style="color:#888; margin-bottom:20px;">MOBILE FIX UPDATE</p><button id="btn-conn" onclick="connectToCloud()">DÉPLOIEMENT</button></div></div>
 
 <div id="ui">
     <div class="hud-panel"><div style="font-size:24px; font-weight:bold;">SCORE: <span id="score">0</span></div></div><br>
@@ -318,7 +318,11 @@ function loop() {
     if(keysDown['KeyS'] || keysDown['ArrowDown']) move.sub(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
     if(keysDown['KeyA'] || keysDown['ArrowLeft']) move.add(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
     if(keysDown['KeyD'] || keysDown['ArrowRight']) move.sub(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
-    if(isMobile) { move.add(new THREE.Vector3(Math.sin(yaw) * -touchMove.y * 1.5, 0, Math.cos(yaw) * -touchMove.y * 1.5)); move.add(new THREE.Vector3(Math.cos(yaw) * touchMove.x * 1.5, 0, -Math.sin(yaw) * touchMove.x * 1.5)); }
+    if(isMobile) { 
+        move.add(new THREE.Vector3(Math.sin(yaw) * -touchMove.y * 1.5, 0, Math.cos(yaw) * -touchMove.y * 1.5)); 
+        // CORRECTION DE L'AXE X INVERSÉ ICI :
+        move.add(new THREE.Vector3(Math.cos(yaw) * -touchMove.x * 1.5, 0, -Math.sin(yaw) * -touchMove.x * 1.5)); 
+    }
     if(move.length() > 0) {
         let s = move.normalize().multiplyScalar(moveSpeed * dt);
         const nextX = playerGroup.position.x + s.x; const nextZ = playerGroup.position.z + s.z;
@@ -389,7 +393,7 @@ function createBullet(d) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.2,0.
 
 function takeDamage(d, id) { 
     hp -= d; 
-    lastDamageTime = Date.now(); // Réinitialise le timer de régène
+    lastDamageTime = Date.now(); 
     document.getElementById('health-bar').style.width = Math.max(0, hp) + "%"; 
     playSound('hit', 0.4); 
     if(hp <= 0) { 
