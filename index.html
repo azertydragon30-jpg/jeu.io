@@ -3,14 +3,14 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Strike - LIGHTING UPDATE</title>
+    <title>Neon Strike - REGEN UPDATE</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
         html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: #fff; font-family: 'Segoe UI', sans-serif; user-select: none; -webkit-touch-callout: none; touch-action: none; }
         #ui { position: absolute; top: 10px; left: 10px; pointer-events: none; width: 100%; z-index: 10; }
         .hud-panel { background: rgba(0,0,0,0.6); padding: 10px; border-left: 4px solid #00d4ff; margin-bottom: 5px; backdrop-filter: blur(4px); display: inline-block; }
-        #health-bar-bg { width: 200px; height: 15px; background: #333; margin-top: 5px; transform: skewX(-20deg); border: 1px solid #555; }
+        #health-bar-bg { width: 200px; height: 15px; background: #333; margin-top: 5px; transform: skewX(-20deg); border: 1px solid #555; overflow: hidden; }
         #health-bar { width: 100%; height: 100%; background: linear-gradient(90deg, #ff0055, #ff5500); transition: width 0.1s; }
         #ammo-box { position: fixed; bottom: 20px; right: 20px; font-size: 35px; font-weight: 900; color: #00d4ff; text-shadow: 0 0 10px #00d4ff; z-index: 5; text-align: right; }
         #weapon-info { font-size: 14px; color: #fff; text-transform: uppercase; }
@@ -51,7 +51,7 @@
 </head>
 <body>
 
-<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">STRIKE</span></h1><p style="color:#888; margin-bottom:20px;">LUMINOSITY UPDATE</p><button id="btn-conn" onclick="connectToCloud()">DÉPLOIEMENT</button></div></div>
+<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">STRIKE</span></h1><p style="color:#888; margin-bottom:20px;">REGENERATION UPDATE</p><button id="btn-conn" onclick="connectToCloud()">DÉPLOIEMENT</button></div></div>
 
 <div id="ui">
     <div class="hud-panel"><div style="font-size:24px; font-weight:bold;">SCORE: <span id="score">0</span></div></div><br>
@@ -86,7 +86,7 @@
 const KEYS_CONFIG = ['hoXqWQ.xS6MJA:4jw_S7dp30pIrB7Sm3tCM6S4WQa57PAqkPdp-WN-Ros'];
 let scene, camera, renderer, playerGroup, yaw = 0, pitch = 0;
 let ably, channel, myID, otherPlayers = {}, bullets = [], walls = [], bots = [], jumpPads = [];
-let keysDown = {}, hp = 100, score = 0;
+let keysDown = {}, hp = 100, score = 0, lastDamageTime = 0;
 let lastShoot = 0, lastDash = 0, lastSync = 0, shakeTime = 0;
 let isReloading = false, isSniper = false;
 let audioCtx, vy = 0; const GRAVITY = -48; const JUMP_FORCE = 22; let canJump = false, jumpCount = 0;
@@ -152,17 +152,14 @@ function playSound(type, vol=0.1) {
 
 function initGame() {
     scene = new THREE.Scene();
-    // Brouillard plus lumineux
     scene.fog = new THREE.FogExp2(0x112244, 0.008);
     camera = new THREE.PerspectiveCamera(80, window.innerWidth/window.innerHeight, 0.1, 1000);
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    // Fond plus clair
     renderer.setClearColor(0x051122);
     document.body.appendChild(renderer.domElement);
     
-    // LUMIÈRES AUGMENTÉES
     scene.add(new THREE.AmbientLight(0xffffff, 0.9));
     const sun = new THREE.DirectionalLight(0xffffff, 0.6);
     sun.position.set(50, 100, 50);
@@ -287,6 +284,12 @@ function loop() {
     const now = Date.now(), dt = 0.016;
     if(isFiring) shoot();
 
+    // SYSTEM REGEN
+    if (now - lastDamageTime > 5000 && hp < 100) {
+        hp = Math.min(100, hp + 15 * dt);
+        document.getElementById('health-bar').style.width = hp + "%";
+    }
+
     // BOTS LOGIC AGGRESSIVE
     bots.forEach(bot => {
         const distToPlayer = bot.mesh.position.distanceTo(playerGroup.position);
@@ -383,7 +386,18 @@ function toggleScope(e) { if(e && e.preventDefault) e.preventDefault(); if(curre
 function triggerHitMarker() { const hm = document.getElementById('hit-marker'); hm.style.opacity = 1; setTimeout(() => { hm.style.opacity = 0; }, 150); }
 function reload(e) { if(e && e.preventDefault) e.preventDefault(); if(!isReloading){ isReloading=true; document.getElementById('reload-msg').style.display='block'; setTimeout(()=>{WEAPONS[currentWeaponIdx].ammo=WEAPONS[currentWeaponIdx].maxAmmo; document.getElementById('ammo-val').textContent=WEAPONS[currentWeaponIdx].ammo; isReloading=false; document.getElementById('reload-msg').style.display='none';},2000); } }
 function createBullet(d) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.2,0.2,0.8), new THREE.MeshBasicMaterial({color:d.col})); m.position.set(d.x,d.y,d.z); m.lookAt(d.x+d.dx, d.y+d.dy, d.z+d.dz); scene.add(m); bullets.push({mesh:m, dir:new THREE.Vector3(d.dx,d.dy,d.dz), speed:d.spd, dmg:d.dmg, col:d.col, o:d.o, death:Date.now()+2000}); }
-function takeDamage(d, id) { hp -= d; document.getElementById('health-bar').style.width = Math.max(0, hp) + "%"; playSound('hit', 0.4); if(hp <= 0) { hp = 100; document.getElementById('health-bar').style.width = "100%"; playerGroup.position.set(45, 0, 45); score = Math.max(0, score - 50); document.getElementById('score').textContent = score; addKillFeed(id, "Toi"); } }
+
+function takeDamage(d, id) { 
+    hp -= d; 
+    lastDamageTime = Date.now(); // Réinitialise le timer de régène
+    document.getElementById('health-bar').style.width = Math.max(0, hp) + "%"; 
+    playSound('hit', 0.4); 
+    if(hp <= 0) { 
+        hp = 100; document.getElementById('health-bar').style.width = "100%"; playerGroup.position.set(45, 0, 45); 
+        score = Math.max(0, score - 50); document.getElementById('score').textContent = score; addKillFeed(id, "Toi"); 
+    } 
+}
+
 function addKillFeed(k,v) { const d=document.createElement('div'); d.className='kill-item'; d.innerHTML=`${k} 🔪 ${v}`; document.getElementById('kill-feed').prepend(d); if(k==="Toi"){ score+=100; document.getElementById('score').textContent=score; } updateLeaderboard(); }
 function updateRemote(d) { if(!otherPlayers[d.o]) { otherPlayers[d.o]={ mesh: createPlayerMesh(0xff0055, true), targetPos: new THREE.Vector3(d.x, d.y, d.z), targetRy: d.ry, targetRp: d.rp || 0, score: d.score || 0, hp: d.hp || 100 }; scene.add(otherPlayers[d.o].mesh); } const p = otherPlayers[d.o]; p.targetPos.set(d.x, d.y, d.z); p.targetRy = d.ry; p.score = d.score; if(p.mesh.healthBar) p.mesh.healthBar.scale.x = Math.max(0, d.hp / 100); }
 function removeRemote(id) { if(otherPlayers[id]) { scene.remove(otherPlayers[id].mesh); delete otherPlayers[id]; } }
