@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Strike - WHEEL UPDATE</title>
+    <title>Neon Strike - COLLISION FIX</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
@@ -51,7 +51,7 @@
 </head>
 <body>
 
-<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">STRIKE</span></h1><p style="color:#888; margin-bottom:20px;">WHEEL UPDATE</p><button id="btn-conn" onclick="connectToCloud()">DÉPLOIEMENT</button></div></div>
+<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">STRIKE</span></h1><p style="color:#888; margin-bottom:20px;">ROOF COLLISION FIX</p><button id="btn-conn" onclick="connectToCloud()">DÉPLOIEMENT</button></div></div>
 
 <div id="ui">
     <div class="hud-panel"><div style="font-size:24px; font-weight:bold;">SCORE: <span id="score">0</span></div></div><br>
@@ -290,9 +290,31 @@ function loop() {
         if(!checkWall(playerGroup.position.x + s.x, playerGroup.position.y+1, playerGroup.position.z)) playerGroup.position.x += s.x;
         if(!checkWall(playerGroup.position.x, playerGroup.position.y+1, playerGroup.position.z + s.z)) playerGroup.position.z += s.z;
     }
+    
+    // --- GESTION DE LA GRAVITÉ ET COLLISION TOITS ---
+    vy += GRAVITY * dt;
+    let nextY = playerGroup.position.y + vy * dt;
+    let onGround = false;
+
+    if (nextY <= 0) {
+        nextY = 0; vy = 0; onGround = true;
+    } else {
+        // Vérifier si on atterrit sur un mur (toit)
+        for (let w of walls) {
+            if (playerGroup.position.x > w.minX && playerGroup.position.x < w.maxX &&
+                playerGroup.position.z > w.minZ && playerGroup.position.z < w.maxZ) {
+                // Si on tombe et qu'on traverse la surface supérieure (maxY)
+                if (playerGroup.position.y >= w.maxY && nextY <= w.maxY) {
+                    nextY = w.maxY; vy = 0; onGround = true; break;
+                }
+            }
+        }
+    }
+    playerGroup.position.y = nextY;
+    if (onGround) { canJump = true; jumpCount = 0; }
+    // ------------------------------------------------
+
     jumpPads.forEach(pad => { if(Math.sqrt((playerGroup.position.x-pad.x)**2 + (playerGroup.position.z-pad.z)**2) < pad.radius && Math.abs(playerGroup.position.y - 0.25) < 2) { vy = 60; playSound('jump', 0.4); } });
-    vy += GRAVITY * dt; playerGroup.position.y += vy * dt;
-    if (playerGroup.position.y <= 0) { playerGroup.position.y = 0; vy = 0; canJump = true; jumpCount = 0; }
     playerGroup.rotation.y = yaw;
 
     for(let i=bullets.length-1; i>=0; i--) {
@@ -350,7 +372,6 @@ function setupInputs() {
     window.onkeydown=e=>{ keysDown[e.code]=true; if(e.code==='KeyR') reload(); if(e.code==='Space') jump(); if(e.code==='Digit1') switchWeapon(0); if(e.code==='Digit2') switchWeapon(1); if(e.code==='Digit3') switchWeapon(2); }; 
     window.onkeyup=e=>keysDown[e.code]=false;
     
-    // --- NOUVEAU : Changement d'arme à la molette ---
     window.addEventListener('wheel', e => {
         if (isMobile || isReloading) return;
         let nextIdx = currentWeaponIdx + (e.deltaY > 0 ? 1 : -1);
@@ -358,7 +379,6 @@ function setupInputs() {
         if (nextIdx >= WEAPONS.length) nextIdx = 0;
         switchWeapon(nextIdx);
     }, { passive: false });
-    // -----------------------------------------------
 
     document.onmousemove=e=>{ if(document.pointerLockElement) { yaw -= e.movementX * 0.003; pitch = Math.max(-1, Math.min(1, pitch - e.movementY * 0.003)); } };
     window.onmousedown=()=>{ if(!isMobile) { if(document.pointerLockElement) { if(event.button===0) shoot(); if(event.button===2) toggleScope(); } else { renderer.domElement.requestPointerLock(); initAudio(); } } };
