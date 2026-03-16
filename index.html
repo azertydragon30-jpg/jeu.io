@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Strike - ADMIN EDITION</title>
+    <title>Neon Strike - SKYSCRAPER SPAWN</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
@@ -52,7 +52,7 @@
 </head>
 <body>
 
-<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">CITY</span></h1><p style="color:#888; margin-bottom:20px;">ADMIN ACCESS READY</p><button id="btn-conn" onclick="connectToCloud()">ENTRER EN VILLE</button></div></div>
+<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">CITY</span></h1><p style="color:#888; margin-bottom:20px;">SKYLINE SPAWN ENABLED</p><button id="btn-conn" onclick="connectToCloud()">ENTRER EN VILLE</button></div></div>
 
 <div id="ui">
     <div class="hud-panel"><div style="font-size:24px; font-weight:bold;">SCORE: <span id="score">0</span></div></div><br>
@@ -91,11 +91,11 @@ let ably, channel, myID, otherPlayers = {}, bullets = [], walls = [], bots = [],
 let keysDown = {}, hp = 100, score = 0, lastDamageTime = 0;
 let lastShoot = 0, lastDash = 0, lastSync = 0;
 let isReloading = false, isSniper = false, dashPower = 0;
-let isAdmin = false; // Variable secrète d'admin
+let isAdmin = false; 
 let audioCtx, vy = 0; const GRAVITY = -55; const JUMP_FORCE = 24; let jumpCount = 0;
 let isMobile = false, touchMove = { x: 0, y: 0 }, isFiring = false;
 
-// Commande secrète console
+// Commande secrète console (F12)
 window.admin = function() {
     isAdmin = !isAdmin;
     console.log("%c [SYSTEM] MODE ADMIN : " + (isAdmin ? "ACTIVÉ" : "DÉSACTIVÉ"), "color: #00d4ff; font-weight: bold; font-size: 16px;");
@@ -187,7 +187,8 @@ function initGame() {
     
     buildMap();
     playerGroup = createPlayerMesh(0x00d4ff, false); 
-    playerGroup.position.set(0, 25, 0); 
+    // SPAWN AU SOMMET DU GRATTE-CIEL CENTRAL (Hauteur 40 + décalage)
+    playerGroup.position.set(0, 42, 0); 
     scene.add(playerGroup);
     
     for(let i=0; i<8; i++) spawnBot();
@@ -217,6 +218,7 @@ function buildMap() {
     const grid = new THREE.GridHelper(2000, 100, 0x002244, 0x001122); scene.add(grid);
     
     createWall(0, 0, 0, 50, 50, 1, 0x111122);
+    // GRATTE-CIEL CENTRAL (Le point de spawn)
     createWall(0, 1, 0, 12, 12, 40, 0x0088ff);
     createJumpPad(20, 0, 20); createJumpPad(-20, 0, -20);
 
@@ -386,7 +388,17 @@ function shoot() {
     }
 }
 
-function takeDamage(d, id) { hp -= d; document.getElementById('health-bar').style.width = Math.max(0, hp) + "%"; if(hp <= 0) { hp = 100; playerGroup.position.set(0, 30, 0); addKillFeed(id, "Toi"); } }
+function takeDamage(d, id) { 
+    hp -= d; 
+    document.getElementById('health-bar').style.width = Math.max(0, hp) + "%"; 
+    if(hp <= 0) { 
+        hp = 100; 
+        // RESPAWN AU SOMMET DU GRATTE-CIEL
+        playerGroup.position.set(0, 42, 0); 
+        document.getElementById('health-bar').style.width = "100%";
+        addKillFeed(id, "Toi"); 
+    } 
+}
 function createBullet(d) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.3*d.sz, 0.3*d.sz, 1.2*d.sz), new THREE.MeshBasicMaterial({color:d.col})); m.position.set(d.x,d.y,d.z); m.lookAt(d.x+d.dx, d.y+d.dy, d.z+d.dz); scene.add(m); bullets.push({mesh:m, dir:new THREE.Vector3(d.dx,d.dy,d.dz), speed:d.spd, dmg:d.dmg, o:d.o}); }
 function reload() { if(!isReloading){ isReloading=true; document.getElementById('reload-msg').style.display='block'; setTimeout(()=>{WEAPONS[currentWeaponIdx].ammo=WEAPONS[currentWeaponIdx].maxAmmo; document.getElementById('ammo-val').textContent=WEAPONS[currentWeaponIdx].ammo; isReloading=false; document.getElementById('reload-msg').style.display='none';},1800); } }
 function jump() { if(jumpCount < 2) { vy = JUMP_FORCE; jumpCount++; playSound('jump', 0.2); } }
