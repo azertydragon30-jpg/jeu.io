@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Strike - FULL AUTO UPDATE</title>
+    <title>Neon Strike - MULTI-ZONE MAP</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
@@ -52,7 +52,7 @@
 </head>
 <body>
 
-<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">STRIKE</span></h1><p style="color:#888; margin-bottom:20px;">ARSENAL UPDATE</p><button id="btn-conn" onclick="connectToCloud()">DÉPLOIEMENT</button></div></div>
+<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">STRIKE</span></h1><p style="color:#888; margin-bottom:20px;">DIVERSITY MAP UPDATE</p><button id="btn-conn" onclick="connectToCloud()">DÉPLOIEMENT</button></div></div>
 
 <div id="ui">
     <div class="hud-panel"><div style="font-size:24px; font-weight:bold;">SCORE: <span id="score">0</span></div></div><br>
@@ -157,25 +157,25 @@ function playSound(type, vol=0.1) {
 
 function initGame() {
     scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x112244, 0.008);
+    scene.fog = new THREE.FogExp2(0x050a15, 0.008);
     camera = new THREE.PerspectiveCamera(80, window.innerWidth/window.innerHeight, 0.1, 1000);
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setClearColor(0x051122);
+    renderer.setClearColor(0x050a15);
     document.body.appendChild(renderer.domElement);
     
-    scene.add(new THREE.AmbientLight(0xffffff, 0.9));
-    const sun = new THREE.DirectionalLight(0xffffff, 0.6);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+    const sun = new THREE.DirectionalLight(0x00d4ff, 0.8);
     sun.position.set(50, 100, 50);
     scene.add(sun);
     
     buildMap();
     playerGroup = createPlayerMesh(0x00d4ff, false); 
-    playerGroup.position.set(45, 0, 45);
+    playerGroup.position.set(0, 5, 0); // Spawn au centre
     scene.add(playerGroup);
     
-    for(let i=0; i<8; i++) spawnBot();
+    for(let i=0; i<10; i++) spawnBot();
     setupInputs();
     loop();
 }
@@ -206,29 +206,43 @@ function createPlayerMesh(col, withHealthBar = true) {
 }
 
 function buildMap() {
-    const grid = new THREE.GridHelper(1000, 100, 0x00aaff, 0x113366); scene.add(grid);
-    createWall(0, 0, 0, 30, 30, 6, 0x222244); 
-    createWall(0, 6, 0, 10, 10, 20, 0x00d4ff); 
-    createJumpPad(0, 0, 20); createJumpPad(0, 0, -20); 
+    const grid = new THREE.GridHelper(1000, 100, 0x003366, 0x001122); scene.add(grid);
+    
+    // --- ZONE CENTRALE (Le Noyau) ---
+    createWall(0, 0, 0, 20, 20, 1, 0x00d4ff); // Sol surélevé centre
+    createWall(0, 1, 0, 8, 8, 12, 0x222244); // Pilier central
+    createWall(0, 12, 0, 30, 30, 1, 0x00d4ff); // Toit centre
+    createJumpPad(0, 1, 0); // Pad pour monter au toit depuis l'intérieur
 
-    const sectors = [{x: 60, z: 60, col: 0xff0055}, {x: -60, z: 60, col: 0x00ffcc}, {x: 60, z: -60, col: 0xffff00}, {x: -60, z: -60, col: 0xff00ff}];
-    sectors.forEach(s => {
-        createWall(s.x, 0, s.z, 25, 25, 15, 0x334466);
-        createWall(s.x, 15, s.z, 28, 28, 1, s.col);
-        createWall(s.x + 10, 16, s.z, 2, 20, 3, 0x444444);
-        createJumpPad(s.x > 0 ? s.x-20 : s.x+20, 0, s.z);
-    });
-
-    for(let i=0; i<15; i++) {
-        let rx = (Math.random()-0.5)*200; let rz = (Math.random()-0.5)*200;
-        if(Math.abs(rx) < 25 && Math.abs(rz) < 25) rx += 50; 
-        createWall(rx, 0, rz, 4, 4, 4, 0x00d4ff);
+    // --- ZONE INDUSTRIELLE (Nord) ---
+    for(let i=0; i<5; i++) {
+        createWall(-40 + i*20, 0, 60, 6, 6, 20, 0xffff00); // Piliers jaunes
+        createWall(-40 + i*20, 20, 60, 10, 10, 1, 0xffff00); // Plateformes hautes
     }
-    const limit = 200;
-    createWall(0, 0, limit, limit*2, 10, 50, 0x111122);
-    createWall(0, 0, -limit, limit*2, 10, 50, 0x111122);
-    createWall(limit, 0, 0, 10, limit*2, 50, 0x111122);
-    createWall(-limit, 0, 0, 10, limit*2, 50, 0x111122);
+    createWall(0, 0, 80, 50, 10, 5, 0x444444); // Grand conteneur bas
+
+    // --- ZONE PARKOUR (Sud) ---
+    createWall(-60, 5, -60, 10, 10, 1, 0xff00cc);
+    createWall(-40, 10, -80, 10, 10, 1, 0xff00cc);
+    createWall(-20, 15, -60, 10, 10, 1, 0xff00cc);
+    createWall(0, 20, -80, 10, 10, 1, 0xff00cc);
+    createJumpPad(-60, 0, -60);
+
+    // --- ZONE DE COMBAT RAPPROCHÉ (Est/Ouest) ---
+    // labyrinthe de blocs bas pour la mitraillette
+    for(let i=0; i<12; i++) {
+        let rx = 50 + (Math.random()-0.5)*40;
+        let rz = (Math.random()-0.5)*100;
+        createWall(rx, 0, rz, 4, 4, 4, 0x00ffcc);
+        createWall(-rx, 0, rz, 4, 4, 4, 0x00ffcc);
+    }
+
+    // --- LIMITES DU MONDE ---
+    const limit = 150;
+    createWall(0, 0, limit, limit*2, 10, 40, 0x111122);
+    createWall(0, 0, -limit, limit*2, 10, 40, 0x111122);
+    createWall(limit, 0, 0, 10, limit*2, 40, 0x111122);
+    createWall(-limit, 0, 0, 10, limit*2, 40, 0x111122);
 }
 
 function createWall(x, y, z, w, d, h, color = 0x112233) {
@@ -243,10 +257,10 @@ function createJumpPad(x, y, z) {
     const geo = new THREE.CylinderGeometry(3, 3, 0.5, 16);
     const mat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.8 });
     const m = new THREE.Mesh(geo, mat);
-    m.position.set(x, 0.25, z);
+    m.position.set(x, y + 0.25, z);
     const glow = new THREE.PointLight(0x00ffff, 4, 15); glow.position.copy(m.position);
     scene.add(m, glow);
-    jumpPads.push({ x, z, radius: 3 });
+    jumpPads.push({ x, z, y, radius: 3 });
 }
 
 function spawnBot() {
@@ -259,7 +273,7 @@ function spawnBot() {
         dir: new THREE.Vector3(Math.random()-0.5, 0, Math.random()-0.5).normalize(), 
         changeDirAt: Date.now() + 2000 
     };
-    bot.mesh.position.set((Math.random()-0.5)*180, 0, (Math.random()-0.5)*180); 
+    bot.mesh.position.set((Math.random()-0.5)*200, 10, (Math.random()-0.5)*200); 
     scene.add(bot.mesh); 
     bots.push(bot);
 }
@@ -300,8 +314,8 @@ function loop() {
 
     bots.forEach(bot => {
         const distToPlayer = bot.mesh.position.distanceTo(playerGroup.position);
-        if (distToPlayer < 60) {
-            bot.mesh.lookAt(playerGroup.position.x, 0, playerGroup.position.z);
+        if (distToPlayer < 70) {
+            bot.mesh.lookAt(playerGroup.position.x, bot.mesh.position.y, playerGroup.position.z);
             if (now - bot.lastShoot > 1400) {
                 bot.lastShoot = now;
                 const dir = playerGroup.position.clone().sub(bot.mesh.position).normalize();
@@ -332,7 +346,12 @@ function loop() {
         if(!checkWall(playerGroup.position.x, playerGroup.position.y + 1, playerGroup.position.z + s.z)) playerGroup.position.z += s.z;
     }
 
-    jumpPads.forEach(pad => { let d = Math.sqrt((playerGroup.position.x-pad.x)**2 + (playerGroup.position.z-pad.z)**2); if(d < pad.radius && Math.abs(playerGroup.position.y - 0.25) < 2) { vy = 60; playSound('jump', 0.4); } });
+    jumpPads.forEach(pad => { 
+        let d = Math.sqrt((playerGroup.position.x-pad.x)**2 + (playerGroup.position.z-pad.z)**2); 
+        if(d < pad.radius && Math.abs(playerGroup.position.y - pad.y) < 2) { 
+            vy = 65; playSound('jump', 0.4); 
+        } 
+    });
     
     vy += GRAVITY * dt;
     let nextY = playerGroup.position.y + vy * dt;
@@ -407,7 +426,7 @@ function createBullet(d) {
     bullets.push({mesh:m, dir:new THREE.Vector3(d.dx,d.dy,d.dz), speed:d.spd, dmg:d.dmg, o:d.o, death:Date.now()+2000}); 
 }
 
-function takeDamage(d, id) { lastDamageTime = Date.now(); hp -= d; document.getElementById('health-bar').style.width = Math.max(0, hp) + "%"; playSound('hit', 0.4); if(hp <= 0) { hp = 100; playerGroup.position.set(45, 0, 45); score = Math.max(0, score - 50); document.getElementById('score').textContent = score; addKillFeed(id, "Toi"); } }
+function takeDamage(d, id) { lastDamageTime = Date.now(); hp -= d; document.getElementById('health-bar').style.width = Math.max(0, hp) + "%"; playSound('hit', 0.4); if(hp <= 0) { hp = 100; playerGroup.position.set(0, 5, 0); score = Math.max(0, score - 50); document.getElementById('score').textContent = score; addKillFeed(id, "Toi"); } }
 function addKillFeed(k,v) { const d=document.createElement('div'); d.className='kill-item'; d.innerHTML=`${k} 🔪 ${v}`; document.getElementById('kill-feed').prepend(d); if(k==="Toi") score+=100; document.getElementById('score').textContent=score; updateLeaderboard(); }
 function updateRemote(d) { if(!otherPlayers[d.o]) { otherPlayers[d.o]={ mesh: createPlayerMesh(0xff0055, true), targetPos: new THREE.Vector3(d.x, d.y, d.z), score: d.score || 0 }; scene.add(otherPlayers[d.o].mesh); } otherPlayers[d.o].mesh.position.lerp(new THREE.Vector3(d.x, d.y, d.z), 0.2); otherPlayers[d.o].mesh.rotation.y = d.ry; otherPlayers[d.o].score = d.score; if(otherPlayers[d.o].mesh.healthBar) otherPlayers[d.o].mesh.healthBar.scale.x = (d.hp||100)/100; }
 function removeRemote(id) { if(otherPlayers[id]) { scene.remove(otherPlayers[id].mesh); delete otherPlayers[id]; } }
