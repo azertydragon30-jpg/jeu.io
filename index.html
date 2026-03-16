@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Strike - Fixed Edition</title>
+    <title>Neon Strike - Bullet Fix Edition</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
@@ -15,7 +15,7 @@
         #ammo-box { position: fixed; bottom: 20px; right: 20px; font-size: 35px; font-weight: 900; color: #00d4ff; text-shadow: 0 0 10px #00d4ff; z-index: 5; text-align: right; }
         #weapon-info { font-size: 14px; color: #fff; text-transform: uppercase; }
         #heli-ui { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: rgba(0,255,100,0.3); border: 2px solid #0f0; padding: 10px; display: none; color: #0f0; font-family: monospace; font-weight: bold; }
-        #crosshair { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 6px; height: 6px; border: 2px solid #00fff2; border-radius: 50%; pointer-events: none; z-index: 21; }
+        #crosshair { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 10px; height: 10px; border: 2px solid #00fff2; border-radius: 50%; pointer-events: none; z-index: 21; }
         #login { position: fixed; inset: 0; background: #000; display: flex; align-items: center; justify-content: center; z-index: 100; }
         .box { background: rgba(20,20,30,0.9); padding: 50px; border: 2px solid #00d4ff; text-align: center; border-radius: 10px; }
         button { padding: 15px 40px; background: #00d4ff; border: none; font-weight: 900; cursor: pointer; color: #000; text-transform: uppercase; }
@@ -25,7 +25,7 @@
 </head>
 <body>
 
-<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">CITY</span></h1><button onclick="connectToCloud()">DÉMARRER LE FIX</button></div></div>
+<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">CITY</span></h1><p>FIX MUNITIONS & VISÉE VERTICALE</p><button onclick="connectToCloud()">DÉPLOYER</button></div></div>
 
 <div id="ui">
     <div class="hud-panel"><div>SCORE: <span id="score">0</span></div></div><br>
@@ -47,7 +47,7 @@ const GRAVITY = -55, JUMP_FORCE = 24;
 
 let heliGroup, rotor, isPiloting = false, heliVelocity = new THREE.Vector3();
 
-// --- COMMANDES ADMIN ---
+// --- ADMIN COMMANDS ---
 window.admin = function() {
     isAdmin = !isAdmin;
     if(isAdmin) {
@@ -62,8 +62,8 @@ window.admin = function() {
 };
 
 const WEAPONS = [
-    { name: "Mitraillette", ammo: 50, maxAmmo: 50, rate: 80, dmg: 6, speed: 200, color: 0xff00cc, size: 0.6 },
-    { name: "Railgun", ammo: 5, maxAmmo: 5, rate: 1000, dmg: 85, speed: 400, color: 0xff00ff, size: 1.2 }
+    { name: "Mitraillette", ammo: 50, maxAmmo: 50, rate: 100, dmg: 10, speed: 300, color: 0x00ffff, size: 0.4 },
+    { name: "Railgun", ammo: 5, maxAmmo: 5, rate: 800, dmg: 100, speed: 600, color: 0xff00ff, size: 0.8 }
 ];
 let currentWeaponIdx = 0;
 
@@ -78,28 +78,27 @@ async function connectToCloud() {
             initGame();
             document.getElementById('login').style.display = 'none';
         });
-    } catch (e) { alert("Erreur de connexion Ably"); }
+    } catch (e) { alert("Erreur Ably"); }
 }
 
 function handleMessage(m) {
     if (m.data.o === myID) return;
     const d = m.data;
-    if (d.t === 'm') updateRemote(d);
-    else if (d.t === 'f') createBullet(d);
+    if (d.t === 'f') createBullet(d);
     else if (d.t === 'h' && d.tgt === myID) takeDamage(d.dmg, d.o);
 }
 
 function initGame() {
     scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x02050a, 0.005); // Brouillard réduit pour mieux voir
+    scene.fog = new THREE.FogExp2(0x02050a, 0.005);
     camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 2000);
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setClearColor(0x02050a);
     document.body.appendChild(renderer.domElement);
     
-    const ambient = new THREE.AmbientLight(0xffffff, 0.5); scene.add(ambient);
-    const sun = new THREE.DirectionalLight(0xffffff, 0.8); sun.position.set(100, 200, 100); scene.add(sun);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+    const sun = new THREE.DirectionalLight(0xffffff, 0.5); sun.position.set(50, 100, 50); scene.add(sun);
     
     buildStructuredCity();
     createHeli();
@@ -108,39 +107,32 @@ function initGame() {
     playerGroup.position.set(0, 42, 0); 
     scene.add(playerGroup);
     
-    for(let i=0; i<5; i++) spawnBot();
+    for(let i=0; i<8; i++) spawnBot();
     
     setupInputs();
     loop();
 }
 
 function buildStructuredCity() {
-    // Sol principal
     const groundGeo = new THREE.PlaneGeometry(2000, 2000);
-    const groundMat = new THREE.MeshStandardMaterial({ color: 0x050510 });
+    const groundMat = new THREE.MeshStandardMaterial({ color: 0x0a0a15 });
     const ground = new THREE.Mesh(groundGeo, groundMat);
     ground.rotation.x = -Math.PI / 2;
     scene.add(ground);
 
-    // Tour Centrale (Spawn)
-    createWall(0, 0, 0, 15, 15, 40, 0x0088ff);
+    createWall(0, 0, 0, 20, 20, 40, 0x0088ff); // Tour centrale
 
-    // Grille d'immeubles
-    for(let x = -4; x <= 4; x++) {
-        for(let z = -4; z <= 4; z++) {
+    for(let x = -5; x <= 5; x++) {
+        for(let z = -5; z <= 5; z++) {
             if(x === 0 && z === 0) continue;
-            const posX = x * 50;
-            const posZ = z * 50;
-            const h = 20 + Math.random() * 50;
-            createWall(posX, 0, posZ, 20, 20, h, 0x111122);
+            const h = 15 + Math.random() * 60;
+            createWall(x * 60, 0, z * 60, 30, 30, h, 0x151525);
         }
     }
 }
 
 function createWall(x, y, z, w, d, h, color) {
-    const geo = new THREE.BoxGeometry(w, h, d);
-    const mat = new THREE.MeshStandardMaterial({ color: color, metalness: 0.5, roughness: 0.2 });
-    const m = new THREE.Mesh(geo, mat); 
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ color: color })); 
     m.position.set(x, y + h/2, z); 
     scene.add(m);
     walls.push({ minX: x-w/2, maxX: x+w/2, minZ: z-d/2, maxZ: z+d/2, minY: y, maxY: y+h });
@@ -148,7 +140,7 @@ function createWall(x, y, z, w, d, h, color) {
 
 function createPlayerMesh(col) {
     const g = new THREE.Group();
-    const b = new THREE.Mesh(new THREE.BoxGeometry(1, 2, 1), new THREE.MeshStandardMaterial({ color: col }));
+    const b = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2, 1.2), new THREE.MeshStandardMaterial({ color: col }));
     b.position.y = 1;
     g.add(b);
     return g;
@@ -156,20 +148,20 @@ function createPlayerMesh(col) {
 
 function spawnBot() {
     const bot = { 
-        id: "Bot-" + Math.random(), 
-        mesh: createPlayerMesh(0xff0000), 
+        id: "Bot-" + Math.floor(Math.random()*1000), 
+        mesh: createPlayerMesh(0xff3300), 
         hp: 100, 
         lastShoot: 0,
         dir: new THREE.Vector3(Math.random()-0.5, 0, Math.random()-0.5).normalize()
     };
-    bot.mesh.position.set((Math.random()-0.5)*200, 50, (Math.random()-0.5)*200);
+    bot.mesh.position.set((Math.random()-0.5)*400, 1, (Math.random()-0.5)*400);
     scene.add(bot.mesh);
     bots.push(bot);
 }
 
 function checkWall(x, z, y) {
     for (let w of walls) {
-        if (x > w.minX - 0.5 && x < w.maxX + 0.5 && z > w.minZ - 0.5 && z < w.maxZ + 0.5) {
+        if (x > w.minX - 0.6 && x < w.maxX + 0.6 && z > w.minZ - 0.6 && z < w.maxZ + 0.6) {
             if (y < w.maxY) return true;
         }
     }
@@ -179,7 +171,7 @@ function checkWall(x, z, y) {
 function getFloorY(x, z, currentY) {
     let floor = 0;
     for (let w of walls) {
-        if (x > w.minX - 0.5 && x < w.maxX + 0.5 && z > w.minZ - 0.5 && z < w.maxZ + 0.5) {
+        if (x > w.minX - 0.6 && x < w.maxX + 0.6 && z > w.minZ - 0.6 && z < w.maxZ + 0.6) {
             if (currentY >= w.maxY - 1) floor = Math.max(floor, w.maxY);
         }
     }
@@ -192,7 +184,6 @@ function loop() {
     const now = Date.now();
 
     if(!isPiloting) {
-        // Déplacement Joueur avec Collisions
         const move = new THREE.Vector3();
         if(keysDown['KeyW']) move.add(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
         if(keysDown['KeyS']) move.sub(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
@@ -200,7 +191,7 @@ function loop() {
         if(keysDown['KeyD']) move.sub(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
         
         if(move.length() > 0) {
-            const speed = 35 * dt;
+            const speed = 40 * dt;
             const nextX = playerGroup.position.x + move.normalize().x * speed;
             const nextZ = playerGroup.position.z + move.normalize().z * speed;
             if(!checkWall(nextX, playerGroup.position.z, playerGroup.position.y + 1)) playerGroup.position.x = nextX;
@@ -212,46 +203,46 @@ function loop() {
         let ground = getFloorY(playerGroup.position.x, playerGroup.position.z, playerGroup.position.y);
         if(playerGroup.position.y <= ground) { playerGroup.position.y = ground; vy = 0; jumpCount = 0; }
         
-        camera.position.lerp(new THREE.Vector3(playerGroup.position.x - Math.sin(yaw)*12, playerGroup.position.y + 6, playerGroup.position.z - Math.cos(yaw)*12), 0.1);
-        camera.lookAt(playerGroup.position.x, playerGroup.position.y + 2, playerGroup.position.z);
+        camera.position.set(playerGroup.position.x, playerGroup.position.y + 1.7, playerGroup.position.z);
+        camera.rotation.set(pitch, yaw + Math.PI, 0, 'YXZ');
     } else {
-        // Pilotage Hélico
-        rotor.rotation.y += 0.5;
-        if(keysDown['KeyW']) heliVelocity.z += Math.cos(heliGroup.rotation.y) * 1.5;
-        if(keysDown['KeyS']) heliVelocity.z -= Math.cos(heliGroup.rotation.y) * 1.5;
-        if(keysDown['KeyA']) heliGroup.rotation.y += 0.03;
-        if(keysDown['KeyD']) heliGroup.rotation.y -= 0.03;
-        if(keysDown['Space']) heliVelocity.y += 1.2;
-        if(keysDown['ShiftLeft']) heliVelocity.y -= 1.2;
+        rotor.rotation.y += 0.6;
+        if(keysDown['KeyW']) heliVelocity.add(new THREE.Vector3(Math.sin(heliGroup.rotation.y), 0, Math.cos(heliGroup.rotation.y)).multiplyScalar(1.2));
+        if(keysDown['KeyS']) heliVelocity.sub(new THREE.Vector3(Math.sin(heliGroup.rotation.y), 0, Math.cos(heliGroup.rotation.y)).multiplyScalar(1.2));
+        if(keysDown['KeyA']) heliGroup.rotation.y += 0.04;
+        if(keysDown['KeyD']) heliGroup.rotation.y -= 0.04;
+        if(keysDown['Space']) heliVelocity.y += 1.0;
+        if(keysDown['ShiftLeft']) heliVelocity.y -= 1.0;
         
-        heliVelocity.multiplyScalar(0.95);
+        heliVelocity.multiplyScalar(0.96);
         heliGroup.position.add(heliVelocity.clone().multiplyScalar(dt * 10));
         playerGroup.position.copy(heliGroup.position);
-        camera.position.lerp(new THREE.Vector3(heliGroup.position.x - Math.sin(heliGroup.rotation.y)*25, heliGroup.position.y + 10, heliGroup.position.z - Math.cos(heliGroup.rotation.y)*25), 0.1);
+        camera.position.set(heliGroup.position.x - Math.sin(heliGroup.rotation.y)*20, heliGroup.position.y + 10, heliGroup.position.z - Math.cos(heliGroup.rotation.y)*20);
         camera.lookAt(heliGroup.position);
     }
 
-    // Update Bots
-    bots.forEach(bot => {
-        bot.mesh.position.x += bot.dir.x * 10 * dt;
-        bot.mesh.position.z += bot.dir.z * 10 * dt;
-        if(checkWall(bot.mesh.position.x, bot.mesh.position.z, bot.mesh.position.y + 1)) {
-            bot.dir.set(Math.random()-0.5, 0, Math.random()-0.5).normalize();
-        }
-        if(now - bot.lastShoot > 2000) {
-            bot.lastShoot = now;
-            const d = playerGroup.position.clone().sub(bot.mesh.position).normalize();
-            createBullet({ t:'f', o:bot.id, x:bot.mesh.position.x, y:bot.mesh.position.y+1.5, z:bot.mesh.position.z, dx:d.x, dy:d.y, dz:d.z, spd:100, dmg:10, col:0xff0000, sz:0.8 });
-        }
-    });
-
-    // Update Bullets
+    // Mise à jour des balles (Mouvement corrigé)
     for(let i=bullets.length-1; i>=0; i--) {
-        const b = bullets[i]; b.mesh.position.addScaledVector(b.dir, b.speed * dt);
-        if(b.mesh.position.distanceTo(playerGroup.position) < 2) {
-            takeDamage(b.dmg, b.o); scene.remove(b.mesh); bullets.splice(i,1);
-        } else if(b.mesh.position.y < 0 || b.mesh.position.length() > 1000) {
-            scene.remove(b.mesh); bullets.splice(i,1);
+        const b = bullets[i];
+        const step = b.dir.clone().multiplyScalar(b.speed * dt);
+        b.mesh.position.add(step);
+
+        // Collision Bots
+        for(let j=bots.length-1; j>=0; j--) {
+            if(b.o === myID && b.mesh.position.distanceTo(bots[j].mesh.position) < 2) {
+                scene.remove(bots[j].mesh); bots.splice(j, 1);
+                scene.remove(b.mesh); bullets.splice(i, 1);
+                score += 100; document.getElementById('score').textContent = score;
+                addKillFeed("TOI", "BOT");
+                break;
+            }
+        }
+        
+        // Collision Joueur
+        if(b.o !== myID && b.mesh.position.distanceTo(playerGroup.position) < 1.5) {
+            takeDamage(b.dmg, b.o); scene.remove(b.mesh); bullets.splice(i, 1);
+        } else if(b.mesh.position.length() > 1500) {
+            scene.remove(b.mesh); bullets.splice(i, 1);
         }
     }
 
@@ -260,11 +251,11 @@ function loop() {
 
 function createHeli() {
     heliGroup = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.BoxGeometry(2, 1.5, 5), new THREE.MeshStandardMaterial({color: 0x333333}));
-    rotor = new THREE.Mesh(new THREE.BoxGeometry(8, 0.1, 0.4), new THREE.MeshStandardMaterial({color: 0x111111}));
-    rotor.position.y = 1.2;
+    const body = new THREE.Mesh(new THREE.BoxGeometry(3, 2, 6), new THREE.MeshStandardMaterial({color: 0x444444}));
+    rotor = new THREE.Mesh(new THREE.BoxGeometry(10, 0.1, 0.5), new THREE.MeshStandardMaterial({color: 0x000000}));
+    rotor.position.y = 1.5;
     heliGroup.add(body, rotor);
-    heliGroup.position.set(0, 41.5, -5);
+    heliGroup.position.set(0, 41, -5);
     scene.add(heliGroup);
 }
 
@@ -275,13 +266,15 @@ function shoot() {
     lastShoot = Date.now();
     if(!isAdmin) { w.ammo--; document.getElementById('ammo-val').textContent = w.ammo; }
 
-    const dir = new THREE.Vector3(Math.sin(yaw), Math.sin(pitch), Math.cos(yaw));
-    const data = { t:'f', o:myID, x:playerGroup.position.x, y:playerGroup.position.y+1.5, z:playerGroup.position.z, dx:dir.x, dy:dir.y, dz:dir.z, spd:w.speed, dmg:w.dmg, col:w.color, sz:w.size };
-    channel.publish('p', data); createBullet(data);
+    // Calcul de la direction face caméra
+    const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion).normalize();
+    const data = { t:'f', o:myID, x:camera.position.x, y:camera.position.y, z:camera.position.z, dx:dir.x, dy:dir.y, dz:dir.z, spd:w.speed, dmg:w.dmg, col:w.color, sz:w.size };
+    if(channel) channel.publish('p', data); 
+    createBullet(data);
 }
 
 function createBullet(d) {
-    const m = new THREE.Mesh(new THREE.SphereGeometry(d.sz/2), new THREE.MeshBasicMaterial({color:d.col}));
+    const m = new THREE.Mesh(new THREE.SphereGeometry(d.sz), new THREE.MeshBasicMaterial({color: d.col}));
     m.position.set(d.x, d.y, d.z);
     scene.add(m);
     bullets.push({mesh:m, dir:new THREE.Vector3(d.dx, d.dy, d.dz), speed:d.spd, dmg:d.dmg, o:d.o});
@@ -295,7 +288,7 @@ function takeDamage(d, killer) {
 }
 
 function addKillFeed(k,v) { 
-    const d=document.createElement('div'); d.className='kill-item'; d.innerHTML=`${k} killed ${v}`; 
+    const d=document.createElement('div'); d.className='kill-item'; d.innerHTML=`<b>${k}</b> > ${v}`; 
     document.getElementById('kill-feed').prepend(d); 
 }
 
@@ -308,23 +301,22 @@ function switchWeapon(i) {
 function setupInputs() {
     window.onkeydown=e=>{ 
         keysDown[e.code]=true;
-        if(e.code==='KeyE') {
-            if(playerGroup.position.distanceTo(heliGroup.position) < 6) {
-                isPiloting = !isPiloting;
-                document.getElementById('heli-ui').style.display = isPiloting ? 'block' : 'none';
-            }
+        if(e.code==='KeyE' && playerGroup.position.distanceTo(heliGroup.position) < 8) {
+            isPiloting = !isPiloting;
+            document.getElementById('heli-ui').style.display = isPiloting ? 'block' : 'none';
         }
-        if(e.code==='Space' && !isPiloting) { if(jumpCount < 2) { vy = JUMP_FORCE; jumpCount++; } }
+        if(e.code==='Space' && !isPiloting && jumpCount < 2) { vy = JUMP_FORCE; jumpCount++; }
         if(e.code.startsWith('Digit')) switchWeapon(parseInt(e.code.slice(-1))-1);
     };
     window.onkeyup=e=>keysDown[e.code]=false;
-    document.onmousemove=e=>{ if(document.pointerLockElement) yaw -= e.movementX * 0.003; };
+    document.onmousemove=e=>{ 
+        if(document.pointerLockElement) {
+            yaw -= e.movementX * 0.002;
+            pitch -= e.movementY * 0.002;
+            pitch = Math.max(-Math.PI/2.1, Math.min(Math.PI/2.1, pitch));
+        }
+    };
     window.onmousedown=e=>{ if(document.pointerLockElement) shoot(); else renderer.domElement.requestPointerLock(); };
-}
-
-function updateRemote(d) {
-    if(!otherPlayers[d.o]){ otherPlayers[d.o]={mesh:createPlayerMesh(0xff0055)}; scene.add(otherPlayers[d.o].mesh); }
-    otherPlayers[d.o].mesh.position.set(d.x, d.y, d.z);
 }
 </script>
 </body>
