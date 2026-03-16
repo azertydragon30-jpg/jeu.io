@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Strike - CITY UPDATE</title>
+    <title>Neon Strike - ADMIN EDITION</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
@@ -52,7 +52,7 @@
 </head>
 <body>
 
-<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">CITY</span></h1><p style="color:#888; margin-bottom:20px;">CITY MAP & ARROW KEYS UPDATE</p><button id="btn-conn" onclick="connectToCloud()">ENTRER EN VILLE</button></div></div>
+<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">CITY</span></h1><p style="color:#888; margin-bottom:20px;">ADMIN ACCESS READY</p><button id="btn-conn" onclick="connectToCloud()">ENTRER EN VILLE</button></div></div>
 
 <div id="ui">
     <div class="hud-panel"><div style="font-size:24px; font-weight:bold;">SCORE: <span id="score">0</span></div></div><br>
@@ -66,7 +66,7 @@
 
 <div id="ammo-box">
     <div id="weapon-info">MITRAILLETTE</div>
-    <span id="ammo-val">50</span> / 50
+    <span id="ammo-val">50</span> / <span id="ammo-max">50</span>
 </div>
 <div id="reload-msg">RECHARGEMENT...</div>
 <div id="kill-feed"></div>
@@ -91,8 +91,23 @@ let ably, channel, myID, otherPlayers = {}, bullets = [], walls = [], bots = [],
 let keysDown = {}, hp = 100, score = 0, lastDamageTime = 0;
 let lastShoot = 0, lastDash = 0, lastSync = 0;
 let isReloading = false, isSniper = false, dashPower = 0;
+let isAdmin = false; // Variable secrète d'admin
 let audioCtx, vy = 0; const GRAVITY = -55; const JUMP_FORCE = 24; let jumpCount = 0;
 let isMobile = false, touchMove = { x: 0, y: 0 }, isFiring = false;
+
+// Commande secrète console
+window.admin = function() {
+    isAdmin = !isAdmin;
+    console.log("%c [SYSTEM] MODE ADMIN : " + (isAdmin ? "ACTIVÉ" : "DÉSACTIVÉ"), "color: #00d4ff; font-weight: bold; font-size: 16px;");
+    if(isAdmin) {
+        document.getElementById('ammo-val').textContent = "∞";
+        document.getElementById('ammo-max').textContent = "∞";
+        addKillFeed("SYSTEM", "ADMIN MODE ACTIVÉ");
+    } else {
+        switchWeapon(currentWeaponIdx);
+    }
+    return "Statut Admin : " + isAdmin;
+};
 
 const WEAPONS = [
     { name: "Mitraillette", ammo: 50, maxAmmo: 50, rate: 80, dmg: 6, speed: 200, color: 0xff00cc, spread: 0.05, count: 1, size: 0.6 },
@@ -201,31 +216,27 @@ function createPlayerMesh(col, withHealthBar = true) {
 function buildMap() {
     const grid = new THREE.GridHelper(2000, 100, 0x002244, 0x001122); scene.add(grid);
     
-    // --- CENTRE VILLE (Place Centrale) ---
     createWall(0, 0, 0, 50, 50, 1, 0x111122);
-    createWall(0, 1, 0, 12, 12, 40, 0x0088ff); // Gratte-ciel Central
+    createWall(0, 1, 0, 12, 12, 40, 0x0088ff);
     createJumpPad(20, 0, 20); createJumpPad(-20, 0, -20);
 
-    // --- IMMEUBLES ALÉATOIRES (The City) ---
     const colors = [0x222244, 0x111133, 0x003366];
     for(let i=0; i<30; i++) {
         let x = (Math.random()-0.5) * 300;
         let z = (Math.random()-0.5) * 300;
-        if(Math.abs(x) < 30 && Math.abs(z) < 30) continue; // Laisser le centre vide
+        if(Math.abs(x) < 30 && Math.abs(z) < 30) continue;
         let w = 15 + Math.random()*15;
         let d = 15 + Math.random()*15;
         let h = 20 + Math.random()*60;
         createWall(x, 0, z, w, d, h, colors[Math.floor(Math.random()*colors.length)]);
     }
 
-    // --- RUES & MOBILIER URBAIN ---
     for(let i=0; i<20; i++) {
         let x = (Math.random()-0.5) * 350;
         let z = (Math.random()-0.5) * 350;
-        createWall(x, 0, z, 3, 3, 4, 0x00ffcc); // Poteaux/Couverture
+        createWall(x, 0, z, 3, 3, 4, 0x00ffcc);
     }
 
-    // LIMITES
     const limit = 250;
     createWall(0, 0, limit, limit*2, 10, 80, 0x050510);
     createWall(0, 0, -limit, limit*2, 10, 80, 0x050510);
@@ -284,14 +295,12 @@ function loop() {
     const now = Date.now(), dt = 0.016;
     if(isFiring) shoot();
 
-    // --- LOGIQUE JOUEUR (AVEC FLÈCHES ET ZQSD) ---
     let moveSpeed = 35 + dashPower; dashPower *= 0.9;
     const move = new THREE.Vector3();
     if(keysDown['KeyW'] || keysDown['ArrowUp']) move.add(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
     if(keysDown['KeyS'] || keysDown['ArrowDown']) move.sub(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
     if(keysDown['KeyA'] || keysDown['ArrowLeft']) move.add(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
     if(keysDown['KeyD'] || keysDown['ArrowRight']) move.sub(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
-    if(isMobile) { move.add(new THREE.Vector3(Math.sin(yaw) * -touchMove.y * 1.5, 0, Math.cos(yaw) * -touchMove.y * 1.5)); move.add(new THREE.Vector3(Math.cos(yaw) * touchMove.x * 1.5, 0, -Math.sin(yaw) * touchMove.x * 1.5)); }
     
     if(move.length() > 0) {
         let s = move.normalize().multiplyScalar(moveSpeed * dt);
@@ -309,13 +318,11 @@ function loop() {
         if(d < pad.radius && Math.abs(playerGroup.position.y - pad.y) < 2) { vy = 70; playSound('jump', 0.4); }
     });
 
-    // --- LOGIQUE BOTS ---
     bots.forEach(bot => {
         bot.vy += GRAVITY * dt;
         let bGround = getFloorY(bot.mesh.position.x, bot.mesh.position.z, bot.mesh.position.y);
         bot.mesh.position.y += bot.vy * dt;
         if(bot.mesh.position.y <= bGround) { bot.mesh.position.y = bGround; bot.vy = 0; }
-
         const dist = bot.mesh.position.distanceTo(playerGroup.position);
         if (dist < 70) {
             bot.mesh.lookAt(playerGroup.position.x, bot.mesh.position.y, playerGroup.position.z);
@@ -336,7 +343,6 @@ function loop() {
         if(bot.mesh.healthBarGroup) bot.mesh.healthBarGroup.lookAt(camera.position);
     });
 
-    // --- PROJECTILES ---
     for(let i=bullets.length-1; i>=0; i--) {
         const b = bullets[i]; b.mesh.position.addScaledVector(b.dir, b.speed * dt);
         if(checkWall(b.mesh.position.x, b.mesh.position.y, b.mesh.position.z) || b.mesh.position.y < -50) { scene.remove(b.mesh); bullets.splice(i,1); continue; }
@@ -355,16 +361,23 @@ function loop() {
 
     camera.position.lerp(new THREE.Vector3(playerGroup.position.x - Math.sin(yaw)*14, playerGroup.position.y + (isSniper?1.8:9), playerGroup.position.z - Math.cos(yaw)*14), 0.2);
     camera.lookAt(playerGroup.position.x + Math.sin(yaw), playerGroup.position.y + (isSniper?1.8:5), playerGroup.position.z + Math.cos(yaw));
-    
     if(now - lastSync > 50) { channel.publish('p', { t:'m', o:myID, x:playerGroup.position.x, y:playerGroup.position.y, z:playerGroup.position.z, ry:yaw, score, hp }); lastSync = now; updateLeaderboard(); }
     renderer.render(scene, camera);
 }
 
 function shoot() {
     const w = WEAPONS[currentWeaponIdx];
-    if(isReloading || w.ammo <= 0) { if(w.ammo<=0) reload(); return; }
+    if(!isAdmin && (isReloading || w.ammo <= 0)) { if(w.ammo<=0) reload(); return; }
     if(Date.now() - lastShoot < w.rate) return;
-    lastShoot = Date.now(); w.ammo--; document.getElementById('ammo-val').textContent = w.ammo;
+    lastShoot = Date.now();
+    
+    if(!isAdmin) {
+        w.ammo--;
+        document.getElementById('ammo-val').textContent = w.ammo;
+    } else {
+        document.getElementById('ammo-val').textContent = "∞";
+    }
+
     playSound('shoot');
     for(let i=0; i<w.count; i++) {
         const spread = (Math.random()-0.5) * w.spread;
@@ -381,7 +394,12 @@ function dash() { if(Date.now()-lastDash > 1000) { lastDash=Date.now(); dashPowe
 function toggleScope() { if(currentWeaponIdx===3){ isSniper=!isSniper; camera.fov=isSniper?15:80; camera.updateProjectionMatrix(); document.getElementById('sniper-scope').style.display=isSniper?'block':'none'; playerGroup.visible=!isSniper; } }
 function triggerHitMarker() { const hm = document.getElementById('hit-marker'); hm.style.opacity = 1; setTimeout(() => hm.style.opacity = 0, 100); }
 function addKillFeed(k,v) { const d=document.createElement('div'); d.className='kill-item'; d.innerHTML=`${k} 🔪 ${v}`; document.getElementById('kill-feed').prepend(d); if(k==="Toi") score+=100; document.getElementById('score').textContent=score; }
-function switchWeapon(i) { currentWeaponIdx=i; document.getElementById('weapon-info').textContent=WEAPONS[i].name; document.getElementById('ammo-val').textContent=WEAPONS[i].ammo; }
+function switchWeapon(i) { 
+    currentWeaponIdx=i; 
+    document.getElementById('weapon-info').textContent=WEAPONS[i].name; 
+    document.getElementById('ammo-val').textContent = isAdmin ? "∞" : WEAPONS[i].ammo;
+    document.getElementById('ammo-max').textContent = isAdmin ? "∞" : WEAPONS[i].maxAmmo;
+}
 function updateLeaderboard() { let p = [{id:"Toi", s:score, me:true}]; for(let id in otherPlayers) p.push({id, s:otherPlayers[id].score, me:false}); p.sort((a,b)=>b.s-a.s); document.getElementById('leaderboard-list').innerHTML = p.slice(0,5).map(x=>`<div class="leader-item ${x.me?'is-me':''}"><span>${x.id}</span><span>${x.s}</span></div>`).join(''); }
 function updateRemote(d) { if(!otherPlayers[d.o]){ otherPlayers[d.o]={mesh:createPlayerMesh(0xff0055, true), score:0}; scene.add(otherPlayers[d.o].mesh); } otherPlayers[d.o].mesh.position.lerp(new THREE.Vector3(d.x,d.y,d.z), 0.2); otherPlayers[d.o].mesh.rotation.y = d.ry; otherPlayers[d.o].score = d.score; otherPlayers[d.o].mesh.healthBar.scale.x = d.hp/100; }
 function removeRemote(id) { if(otherPlayers[id]){ scene.remove(otherPlayers[id].mesh); delete otherPlayers[id]; } }
@@ -400,19 +418,6 @@ function setupInputs() {
     document.onmousemove=e=>{ if(document.pointerLockElement) yaw -= e.movementX * 0.003; };
     window.onmousedown=e=>{ if(document.pointerLockElement){ if(e.button===0) startFire(); if(e.button===2) toggleScope(); } else renderer.domElement.requestPointerLock(); };
     window.onmouseup=e=>{ if(e.button===0) stopFire(); };
-}
-
-function setupTouchControls() {
-    const sz = document.getElementById('stick-container'), lz = document.getElementById('look-zone');
-    sz.addEventListener('touchmove', e => { e.preventDefault(); const t = e.touches[0], r = sz.getBoundingClientRect(), dx = t.clientX-(r.left+r.width/2), dy = t.clientY-(r.top+r.height/2); touchMove = { x: Math.max(-1, Math.min(1, dx/50)), y: Math.max(-1, Math.min(1, dy/50)) }; document.getElementById('stick').style.transform = `translate(calc(-50% + ${touchMove.x*50}px), calc(-50% + ${touchMove.y*50}px))`; }, {passive:false});
-    sz.addEventListener('touchend', () => { touchMove = {x:0, y:0}; document.getElementById('stick').style.transform = `translate(-50%, -50%)`; });
-    let lx = 0; lz.addEventListener('touchstart', e => lx = e.touches[0].clientX);
-    lz.addEventListener('touchmove', e => { const tx = e.touches[0].clientX; yaw -= (tx-lx)*0.008; lx = tx; }, {passive:false});
-    document.getElementById('btn-fire').addEventListener('touchstart', startFire); document.getElementById('btn-fire').addEventListener('touchend', stopFire);
-    document.getElementById('btn-jump').addEventListener('touchstart', jump); 
-    document.getElementById('btn-dash').addEventListener('touchstart', dash);
-    document.getElementById('btn-scope').addEventListener('touchstart', toggleScope); 
-    document.getElementById('btn-swap').addEventListener('touchstart', () => switchWeapon((currentWeaponIdx+1)%5));
 }
 </script>
 </body>
