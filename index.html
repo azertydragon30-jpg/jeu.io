@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Strike - Urban Heli Edition</title>
+    <title>Neon Strike - GOD MODE ADMIN</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
@@ -33,7 +33,7 @@
 </head>
 <body>
 
-<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">CITY</span></h1><p style="color:#888; margin-bottom:20px;">GRID URBANISM & HELICOPTERS</p><button id="btn-conn" onclick="connectToCloud()">DÉCOLLER</button></div></div>
+<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">CITY</span></h1><p style="color:#888; margin-bottom:20px;">GOD MODE ACTIVE</p><button id="btn-conn" onclick="connectToCloud()">DÉCOLLER</button></div></div>
 
 <div id="ui">
     <div class="hud-panel"><div style="font-size:24px; font-weight:bold;">SCORE: <span id="score">0</span></div></div><br>
@@ -57,13 +57,19 @@ const GRAVITY = -55, JUMP_FORCE = 24;
 // Système Hélico
 let heliGroup, rotor, isPiloting = false, heliVelocity = new THREE.Vector3();
 
+// Commande secrète console (F12) - Munitions Infinies + Immortalité
 window.admin = function() {
     isAdmin = !isAdmin;
     if(isAdmin) {
+        hp = 100; // Reset vie au max
+        document.getElementById('health-bar').style.width = "100%";
         document.getElementById('ammo-val').textContent = "∞";
-        addKillFeed("SYSTEM", "ADMIN ACTIVÉ");
+        document.getElementById('ammo-max').textContent = "∞";
+        addKillFeed("SYSTEM", "GOD MODE ACTIVÉ");
+        console.log("%c [ADMIN] MODE INVINCIBLE ET MUNITIONS INFINIES ACTIVÉ ", "background: #000; color: #00ff00; font-size: 15px; font-weight: bold;");
     } else {
         switchWeapon(currentWeaponIdx);
+        console.log("%c [ADMIN] MODE NORMAL RÉTABLI ", "background: #000; color: #ff0000; font-size: 15px; font-weight: bold;");
     }
     return "Admin: " + isAdmin;
 };
@@ -94,7 +100,7 @@ function handleMessage(m) {
     const d = m.data;
     if (d.t === 'm') updateRemote(d);
     else if (d.t === 'f') createBullet(d);
-    else if (d.t === 'h' && d.tgt === myID) takeDamage(d.dmg);
+    else if (d.t === 'h' && d.tgt === myID) takeDamage(d.dmg, d.o);
 }
 
 function initAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
@@ -114,7 +120,7 @@ function initGame() {
     createHeli();
     
     playerGroup = createPlayerMesh(0x00d4ff, false); 
-    playerGroup.position.set(0, 42, 0); // Sur le toit du spawn
+    playerGroup.position.set(0, 42, 0); 
     scene.add(playerGroup);
     
     setupInputs();
@@ -123,26 +129,18 @@ function initGame() {
 
 function buildStructuredCity() {
     const grid = new THREE.GridHelper(2000, 100, 0x003366, 0x001122); scene.add(grid);
-    
-    // Grille urbaine (Avenues et blocs)
     for(let x = -5; x <= 5; x++) {
         for(let z = -5; z <= 5; z++) {
             if(Math.abs(x) < 1 && Math.abs(z) < 1) {
-                // Tour centrale de spawn
                 createWall(0, 0, 0, 15, 15, 40, 0x0088ff);
                 continue;
             }
-            
             const posX = x * 40;
             const posZ = z * 40;
             const height = 20 + Math.random() * 60;
             const color = (x+z) % 2 === 0 ? 0x111122 : 0x050515;
             createWall(posX, 0, posZ, 25, 25, height, color);
-            
-            // Éclairage néon sur certains immeubles
-            if(Math.random() > 0.7) {
-                createWall(posX, height, posZ, 26, 26, 1, 0x00ffcc);
-            }
+            if(Math.random() > 0.7) createWall(posX, height, posZ, 26, 26, 1, 0x00ffcc);
         }
     }
 }
@@ -152,12 +150,10 @@ function createHeli() {
     const body = new THREE.Mesh(new THREE.BoxGeometry(2, 1.5, 5), new THREE.MeshStandardMaterial({color: 0x333333}));
     const tail = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 4), new THREE.MeshStandardMaterial({color: 0x333333}));
     tail.position.z = -3;
-    
     rotor = new THREE.Mesh(new THREE.BoxGeometry(8, 0.1, 0.4), new THREE.MeshStandardMaterial({color: 0x111111}));
     rotor.position.y = 1;
-    
     heliGroup.add(body, tail, rotor);
-    heliGroup.position.set(0, 41.5, -4); // Posé sur le toit du spawn
+    heliGroup.position.set(0, 41.5, -4);
     scene.add(heliGroup);
 }
 
@@ -181,7 +177,6 @@ function loop() {
     const dt = 0.016;
 
     if(!isPiloting) {
-        // Mouvement Joueur
         let moveSpeed = 35;
         const move = new THREE.Vector3();
         if(keysDown['KeyW']) move.add(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
@@ -203,9 +198,7 @@ function loop() {
         camera.position.lerp(new THREE.Vector3(playerGroup.position.x - Math.sin(yaw)*12, playerGroup.position.y + 6, playerGroup.position.z - Math.cos(yaw)*12), 0.1);
         camera.lookAt(playerGroup.position.x, playerGroup.position.y + 2, playerGroup.position.z);
     } else {
-        // Pilotage Hélico
         rotor.rotation.y += 0.5;
-        
         if(keysDown['KeyW']) heliVelocity.z += Math.cos(heliGroup.rotation.y) * 1.5;
         if(keysDown['KeyS']) heliVelocity.z -= Math.cos(heliGroup.rotation.y) * 1.5;
         if(keysDown['KeyA']) heliGroup.rotation.y += 0.03;
@@ -216,7 +209,6 @@ function loop() {
         heliVelocity.multiplyScalar(0.95);
         heliGroup.position.add(heliVelocity.clone().multiplyScalar(dt * 10));
         
-        // Le joueur suit l'hélico
         playerGroup.position.copy(heliGroup.position);
         camera.position.lerp(new THREE.Vector3(heliGroup.position.x - Math.sin(heliGroup.rotation.y)*25, heliGroup.position.y + 10, heliGroup.position.z - Math.cos(heliGroup.rotation.y)*25), 0.1);
         camera.lookAt(heliGroup.position);
@@ -254,14 +246,29 @@ function createBullet(d) {
     bullets.push({mesh:m, dir:new THREE.Vector3(d.dx, d.dy, d.dz), speed:d.spd});
 }
 
-function takeDamage(d) { hp -= d; document.getElementById('health-bar').style.width = hp + "%"; if(hp<=0) location.reload(); }
+function takeDamage(d, killer) { 
+    if(isAdmin) return; // IMMORTALITÉ ACTIVÉE ICI
+    hp -= d; 
+    document.getElementById('health-bar').style.width = hp + "%"; 
+    if(hp<=0) {
+        hp = 100;
+        playerGroup.position.set(0, 42, 0);
+        document.getElementById('health-bar').style.width = "100%";
+        addKillFeed(killer, "Toi");
+    }
+}
 
 function addKillFeed(k,v) { 
     const d=document.createElement('div'); d.className='kill-item'; d.innerHTML=`${k} > ${v}`; 
     document.getElementById('kill-feed').prepend(d); 
 }
 
-function switchWeapon(i) { currentWeaponIdx=i; document.getElementById('weapon-info').textContent=WEAPONS[i].name; }
+function switchWeapon(i) { 
+    currentWeaponIdx=i; 
+    document.getElementById('weapon-info').textContent=WEAPONS[i].name;
+    document.getElementById('ammo-val').textContent = isAdmin ? "∞" : WEAPONS[i].ammo;
+    document.getElementById('ammo-max').textContent = isAdmin ? "∞" : WEAPONS[i].maxAmmo;
+}
 
 function setupInputs() {
     window.onkeydown=e=>{ 
@@ -271,10 +278,11 @@ function setupInputs() {
             if(dist < 5) {
                 isPiloting = !isPiloting;
                 document.getElementById('heli-ui').style.display = isPiloting ? 'block' : 'none';
-                if(!isPiloting) playerGroup.position.y += 2; // Sortir par le haut
+                if(!isPiloting) playerGroup.position.y += 2;
             }
         }
         if(e.code==='Space' && !isPiloting) { if(jumpCount < 2) { vy = JUMP_FORCE; jumpCount++; } }
+        if(e.code.startsWith('Digit')) switchWeapon(parseInt(e.code.slice(-1))-1);
     };
     window.onkeyup=e=>keysDown[e.code]=false;
     document.onmousemove=e=>{ if(document.pointerLockElement) yaw -= e.movementX * 0.003; };
