@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Strike - SMG UPDATE</title>
+    <title>Neon Strike - FULL AUTO UPDATE</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
@@ -427,7 +427,8 @@ function setupInputs() {
     }; 
     window.onkeyup=e=>keysDown[e.code]=false;
     document.onmousemove=e=>{ if(document.pointerLockElement) { yaw -= e.movementX * 0.003; if(isSniper) { pitch = Math.max(-1, Math.min(1, pitch - e.movementY * 0.003)); } } };
-    window.onmousedown=e=>{ if(!isMobile) { if(document.pointerLockElement) { if(e.button===0) shoot(); if(e.button===2) toggleScope(); } else { renderer.domElement.requestPointerLock(); initAudio(); } } };
+    window.onmousedown=e=>{ if(!isMobile) { if(document.pointerLockElement) { if(e.button===0) { isFiring = true; initAudio(); } if(e.button===2) toggleScope(); } else { renderer.domElement.requestPointerLock(); initAudio(); } } };
+    window.onmouseup=e=>{ if(!isMobile && e.button===0) isFiring = false; };
     window.oncontextmenu = e => e.preventDefault();
 }
 
