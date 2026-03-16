@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Strike - ARSENAL UPDATE</title>
+    <title>Neon Strike - SMG UPDATE</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
@@ -65,8 +65,8 @@
 </div>
 
 <div id="ammo-box">
-    <div id="weapon-info">PISTOLET PLASMA</div>
-    <span id="ammo-val">20</span> / 20
+    <div id="weapon-info">MITRAILLETTE</div>
+    <span id="ammo-val">50</span> / 50
 </div>
 <div id="reload-msg">RECHARGEMENT...</div>
 <div id="kill-feed"></div>
@@ -95,7 +95,7 @@ let audioCtx, vy = 0; const GRAVITY = -48; const JUMP_FORCE = 22; let canJump = 
 let isMobile = false, touchMove = { x: 0, y: 0 }, isFiring = false;
 
 const WEAPONS = [
-    { name: "Pistolet Plasma", ammo: 20, maxAmmo: 20, rate: 100, dmg: 8, speed: 200, color: 0x00ffff, spread: 0.02, count: 1, size: 0.5 },
+    { name: "Mitraillette", ammo: 50, maxAmmo: 50, rate: 80, dmg: 6, speed: 200, color: 0xff00cc, spread: 0.05, count: 1, size: 0.6 },
     { name: "Fusil d'Assaut", ammo: 30, maxAmmo: 30, rate: 120, dmg: 12, speed: 180, color: 0x00ffcc, spread: 0, count: 1, size: 1 },
     { name: "Pompe de Combat", ammo: 8, maxAmmo: 8, rate: 800, dmg: 10, speed: 150, color: 0xffaa00, spread: 0.15, count: 7, size: 0.8 },
     { name: "Railgun Sniper", ammo: 5, maxAmmo: 5, rate: 1000, dmg: 85, speed: 400, color: 0xff00ff, spread: 0, count: 1, size: 1.2 },
