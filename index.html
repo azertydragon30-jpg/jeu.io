@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Strike - STABLE WORLD UPDATE (ADMIN)</title>
+    <title>Neon Strike - ADMIN & INFINITE AMMO</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
@@ -70,7 +70,7 @@
 
 <div id="ammo-box">
     <div id="weapon-info">MITRAILLETTE</div>
-    <span id="ammo-val">50</span> / 50
+    <span id="ammo-val">∞</span> / ∞
 </div>
 <div id="reload-msg">RECHARGEMENT...</div>
 <div id="kill-feed"></div>
@@ -207,32 +207,26 @@ function createPlayerMesh(col, withHealthBar = true) {
 
 function buildMap() {
     const grid = new THREE.GridHelper(1000, 100, 0x003366, 0x001122); scene.add(grid);
-    
-    // CENTRE - NOYAU
-    createWall(0, 0, 0, 30, 30, 1, 0x00d4ff); // Sol
-    createWall(0, 1, 0, 10, 10, 15, 0x222244); // Tour
-    createWall(0, 16, 0, 40, 40, 1, 0x00d4ff); // Toit
+    createWall(0, 0, 0, 30, 30, 1, 0x00d4ff);
+    createWall(0, 1, 0, 10, 10, 15, 0x222244);
+    createWall(0, 16, 0, 40, 40, 1, 0x00d4ff);
     createJumpPad(0, 1, 0);
 
-    // ZONE INDUSTRIELLE (NORD)
     for(let i=0; i<4; i++) {
         let x = -30 + i*20;
         createWall(x, 0, 60, 8, 8, 20, 0xffff00);
         createWall(x, 20, 60, 12, 12, 1, 0xffff00);
     }
 
-    // ZONE PARKOUR (SUD)
     createWall(-50, 8, -50, 15, 15, 1, 0xff00cc);
     createWall(-20, 16, -70, 15, 15, 1, 0xff00cc);
     createWall(20, 24, -50, 15, 15, 1, 0xff00cc);
     createJumpPad(-50, 0, -50);
 
-    // ZONE MITRAILLETTE (OUEST)
     for(let i=0; i<15; i++) {
         createWall(-60 + (Math.random()*20), 0, (Math.random()-0.5)*100, 4, 4, 5, 0x00ffcc);
     }
 
-    // LIMITES
     const limit = 180;
     createWall(0, 0, limit, limit*2, 10, 50, 0x111122);
     createWall(0, 0, -limit, limit*2, 10, 50, 0x111122);
@@ -291,7 +285,6 @@ function loop() {
     const now = Date.now(), dt = 0.016;
     if(isFiring) shoot();
 
-    // --- LOGIQUE JOUEUR ---
     let moveSpeed = 32 + dashPower; dashPower *= 0.9;
     const move = new THREE.Vector3();
     if(keysDown['KeyW']) move.add(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
@@ -316,7 +309,6 @@ function loop() {
         if(d < pad.radius && Math.abs(playerGroup.position.y - pad.y) < 2) { vy = 65; playSound('jump', 0.4); }
     });
 
-    // --- LOGIQUE BOTS ---
     bots.forEach(bot => {
         bot.vy += GRAVITY * dt;
         let bGround = getFloorY(bot.mesh.position.x, bot.mesh.position.z, bot.mesh.position.y);
@@ -343,7 +335,6 @@ function loop() {
         if(bot.mesh.healthBarGroup) bot.mesh.healthBarGroup.lookAt(camera.position);
     });
 
-    // --- PROJECTILES ---
     for(let i=bullets.length-1; i>=0; i--) {
         const b = bullets[i]; b.mesh.position.addScaledVector(b.dir, b.speed * dt);
         if(checkWall(b.mesh.position.x, b.mesh.position.y, b.mesh.position.z) || b.mesh.position.y < 0) { scene.remove(b.mesh); bullets.splice(i,1); continue; }
@@ -369,9 +360,11 @@ function loop() {
 
 function shoot() {
     const w = WEAPONS[currentWeaponIdx];
-    if(isReloading || w.ammo <= 0) { if(w.ammo<=0) reload(); return; }
+    if(isReloading) return; // Plus de vérification de munitions
     if(Date.now() - lastShoot < w.rate) return;
-    lastShoot = Date.now(); w.ammo--; document.getElementById('ammo-val').textContent = w.ammo;
+    lastShoot = Date.now();
+    // Les munitions restent à l'infini
+    document.getElementById('ammo-val').textContent = "∞"; 
     playSound('shoot');
     for(let i=0; i<w.count; i++) {
         const spread = (Math.random()-0.5) * w.spread;
@@ -388,13 +381,13 @@ function takeDamage(d, id) {
 }
 
 function createBullet(d) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.3*d.sz, 0.3*d.sz, 1*d.sz), new THREE.MeshBasicMaterial({color:d.col})); m.position.set(d.x,d.y,d.z); m.lookAt(d.x+d.dx, d.y+d.dy, d.z+d.dz); scene.add(m); bullets.push({mesh:m, dir:new THREE.Vector3(d.dx,d.dy,d.dz), speed:d.spd, dmg:d.dmg, o:d.o}); }
-function reload() { if(!isReloading){ isReloading=true; document.getElementById('reload-msg').style.display='block'; setTimeout(()=>{WEAPONS[currentWeaponIdx].ammo=WEAPONS[currentWeaponIdx].maxAmmo; document.getElementById('ammo-val').textContent=WEAPONS[currentWeaponIdx].ammo; isReloading=false; document.getElementById('reload-msg').style.display='none';},2000); } }
+function reload() { /* Désactivé car munitions infinies */ }
 function jump() { if(jumpCount < 2) { vy = JUMP_FORCE; jumpCount++; playSound('jump', 0.2); } }
 function dash() { if(Date.now()-lastDash > 1000) { lastDash=Date.now(); dashPower=80; playSound('dash', 0.3); } }
 function toggleScope() { if(currentWeaponIdx===3){ isSniper=!isSniper; camera.fov=isSniper?15:80; camera.updateProjectionMatrix(); document.getElementById('sniper-scope').style.display=isSniper?'block':'none'; playerGroup.visible=!isSniper; } }
 function triggerHitMarker() { const hm = document.getElementById('hit-marker'); hm.style.opacity = 1; setTimeout(() => hm.style.opacity = 0, 100); }
 function addKillFeed(k,v) { const d=document.createElement('div'); d.className='kill-item'; d.innerHTML=`${k} 🔪 ${v}`; document.getElementById('kill-feed').prepend(d); if(k==="Toi") score+=100; document.getElementById('score').textContent=score; }
-function switchWeapon(i) { if(i<0 || i>=WEAPONS.length) return; currentWeaponIdx=i; document.getElementById('weapon-info').textContent=WEAPONS[i].name; document.getElementById('ammo-val').textContent=WEAPONS[i].ammo; }
+function switchWeapon(i) { if(i<0 || i>=WEAPONS.length) return; currentWeaponIdx=i; document.getElementById('weapon-info').textContent=WEAPONS[i].name; document.getElementById('ammo-val').textContent="∞"; }
 function updateLeaderboard() { let p = [{id:"Toi", s:score, me:true}]; for(let id in otherPlayers) p.push({id, s:otherPlayers[id].score, me:false}); p.sort((a,b)=>b.s-a.s); document.getElementById('leaderboard-list').innerHTML = p.slice(0,5).map(x=>`<div class="leader-item ${x.me?'is-me':''}"><span>${x.id}</span><span>${x.s}</span></div>`).join(''); }
 function updateRemote(d) { if(!otherPlayers[d.o]){ otherPlayers[d.o]={mesh:createPlayerMesh(0xff0055, true), score:0}; scene.add(otherPlayers[d.o].mesh); } otherPlayers[d.o].mesh.position.lerp(new THREE.Vector3(d.x,d.y,d.z), 0.2); otherPlayers[d.o].mesh.rotation.y = d.ry; otherPlayers[d.o].score = d.score; otherPlayers[d.o].mesh.healthBar.scale.x = d.hp/100; }
 function removeRemote(id) { if(otherPlayers[id]){ scene.remove(otherPlayers[id].mesh); delete otherPlayers[id]; } }
