@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Strike - INTERIORS UPDATE</title>
+    <title>Neon Strike - ADMIN AMMO UPDATE</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
@@ -55,7 +55,7 @@
 </head>
 <body>
 
-<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">STRIKE</span></h1><p style="color:#888; margin-bottom:20px;">INTERIORS UPDATE</p><button id="btn-conn" onclick="connectToCloud()">DÉPLOIEMENT</button></div></div>
+<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">STRIKE</span></h1><p style="color:#888; margin-bottom:20px;">ADMIN & AMMO UPDATE</p><button id="btn-conn" onclick="connectToCloud()">DÉPLOIEMENT</button></div></div>
 
 <div id="ui">
     <div class="hud-panel"><div style="font-size:24px; font-weight:bold;">SCORE: <span id="score">0</span></div></div><br>
@@ -69,7 +69,7 @@
 
 <div id="ammo-box">
     <div id="weapon-info">MITRAILLETTE</div>
-    <span id="ammo-val">∞</span> / ∞
+    <span id="ammo-val">--</span> / <span id="ammo-max">--</span>
 </div>
 <div id="reload-msg">RECHARGEMENT...</div>
 <div id="kill-feed"></div>
@@ -190,6 +190,7 @@ function initGame() {
     scene.add(playerGroup);
     
     for(let i=0; i<8; i++) spawnBot();
+    switchWeapon(0); // Init HUD
     setupInputs();
     loop();
 }
@@ -215,28 +216,26 @@ function createPlayerMesh(col, withHealthBar = true) {
 function buildMap() {
     const grid = new THREE.GridHelper(1000, 100, 0x003366, 0x001122); scene.add(grid);
     
-    // CENTRE - ARÈNE OUVERTE (On peut entrer dedans)
-    createWall(0, 0, 0, 50, 50, 1, 0x00d4ff); // Sol
-    createWall(-24, 1, 0, 2, 50, 20, 0x222244); // Mur Gauche
-    createWall(24, 1, 0, 2, 50, 20, 0x222244); // Mur Droit
-    createWall(0, 1, -24, 50, 2, 20, 0x222244); // Mur Fond
-    createWall(-16, 1, 24, 18, 2, 20, 0x222244); // Mur Devant Gauche
-    createWall(16, 1, 24, 18, 2, 20, 0x222244); // Mur Devant Droit (Laisse un trou au centre)
-    createWall(0, 21, 0, 52, 52, 1, 0x00d4ff); // Toit
-    // Obstacles intérieurs de l'arène centrale
+    // CENTRE - ARÈNE OUVERTE
+    createWall(0, 0, 0, 50, 50, 1, 0x00d4ff);
+    createWall(-24, 1, 0, 2, 50, 20, 0x222244);
+    createWall(24, 1, 0, 2, 50, 20, 0x222244);
+    createWall(0, 1, -24, 50, 2, 20, 0x222244);
+    createWall(-16, 1, 24, 18, 2, 20, 0x222244);
+    createWall(16, 1, 24, 18, 2, 20, 0x222244);
+    createWall(0, 21, 0, 52, 52, 1, 0x00d4ff);
     createWall(0, 1, 0, 8, 8, 5, 0x00ffff);
     createJumpPad(0, 1, 0);
 
-    // ZONE INDUSTRIELLE (NORD) - GRAND HANGAR OUVERT
-    createWall(0, 0, 80, 80, 40, 1, 0xffff00); // Sol hangar
-    createWall(-39, 1, 80, 2, 40, 25, 0x444400); // Mur Gauche
-    createWall(39, 1, 80, 2, 40, 25, 0x444400); // Mur Droit
-    createWall(0, 1, 99, 80, 2, 25, 0x444400); // Mur Fond
-    createWall(0, 26, 80, 82, 42, 1, 0xffff00); // Toit Hangar
-    // Caisses et abris dans le hangar
+    // ZONE INDUSTRIELLE (NORD) - GRAND HANGAR
+    createWall(0, 0, 80, 80, 40, 1, 0xffff00);
+    createWall(-39, 1, 80, 2, 40, 25, 0x444400);
+    createWall(39, 1, 80, 2, 40, 25, 0x444400);
+    createWall(0, 1, 99, 80, 2, 25, 0x444400);
+    createWall(0, 26, 80, 82, 42, 1, 0xffff00);
     createWall(-20, 1, 85, 10, 10, 8, 0xffaa00);
     createWall(15, 1, 75, 12, 12, 12, 0xffaa00);
-    createJumpPad(-20, 9, 85); // Sur une caisse
+    createJumpPad(-20, 9, 85);
 
     // ZONE PARKOUR (SUD)
     createWall(-50, 8, -50, 15, 15, 1, 0xff00cc);
@@ -244,14 +243,13 @@ function buildMap() {
     createWall(20, 24, -50, 15, 15, 1, 0xff00cc);
     createJumpPad(-50, 0, -50);
 
-    // ZONE RUES (OUEST / EST)
+    // ZONE RUES
     for(let i=0; i<20; i++) {
         let x = (Math.random() > 0.5 ? -1 : 1) * (60 + Math.random()*40);
         let z = (Math.random()-0.5)*150;
         createWall(x, 0, z, 8, 8, 6 + Math.random()*15, 0x00ffcc);
     }
 
-    // LIMITES
     const limit = 180;
     createWall(0, 0, limit, limit*2, 10, 50, 0x111122);
     createWall(0, 0, -limit, limit*2, 10, 50, 0x111122);
@@ -387,14 +385,35 @@ function shoot() {
     const w = WEAPONS[currentWeaponIdx];
     if(isReloading) return;
     if(Date.now() - lastShoot < w.rate) return;
+
+    // LOGIQUE MUNITIONS : Infini seulement si adminMode est ON
+    if(!adminMode) {
+        if(w.ammo <= 0) { reload(); return; }
+        w.ammo--;
+        document.getElementById('ammo-val').textContent = w.ammo;
+    } else {
+        document.getElementById('ammo-val').textContent = "∞";
+    }
+
     lastShoot = Date.now();
-    document.getElementById('ammo-val').textContent = "∞"; 
     playSound('shoot');
     for(let i=0; i<w.count; i++) {
         const spread = (Math.random()-0.5) * w.spread;
         const d = { t:'f', o:myID, x:playerGroup.position.x, y:playerGroup.position.y+1.8, z:playerGroup.position.z, dx:Math.sin(yaw+spread), dy:Math.sin(pitch), dz:Math.cos(yaw+spread), spd:w.speed, dmg:w.dmg, col:w.color, sz:w.size };
         channel.publish('p', d); createBullet(d);
     }
+}
+
+function reload() {
+    if(isReloading || adminMode) return;
+    isReloading = true;
+    document.getElementById('reload-msg').style.display = 'block';
+    setTimeout(() => {
+        WEAPONS[currentWeaponIdx].ammo = WEAPONS[currentWeaponIdx].maxAmmo;
+        document.getElementById('ammo-val').textContent = WEAPONS[currentWeaponIdx].ammo;
+        document.getElementById('reload-msg').style.display = 'none';
+        isReloading = false;
+    }, 1500);
 }
 
 function takeDamage(d, id) { 
@@ -405,13 +424,21 @@ function takeDamage(d, id) {
 }
 
 function createBullet(d) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.3*d.sz, 0.3*d.sz, 1*d.sz), new THREE.MeshBasicMaterial({color:d.col})); m.position.set(d.x,d.y,d.z); m.lookAt(d.x+d.dx, d.y+d.dy, d.z+d.dz); scene.add(m); bullets.push({mesh:m, dir:new THREE.Vector3(d.dx,d.dy,d.dz), speed:d.spd, dmg:d.dmg, o:d.o}); }
-function reload() { }
 function jump() { if(jumpCount < 2) { vy = JUMP_FORCE; jumpCount++; playSound('jump', 0.2); } }
 function dash() { if(Date.now()-lastDash > 1000) { lastDash=Date.now(); dashPower=80; playSound('dash', 0.3); } }
 function toggleScope() { if(currentWeaponIdx===3){ isSniper=!isSniper; camera.fov=isSniper?15:80; camera.updateProjectionMatrix(); document.getElementById('sniper-scope').style.display=isSniper?'block':'none'; playerGroup.visible=!isSniper; } }
 function triggerHitMarker() { const hm = document.getElementById('hit-marker'); hm.style.opacity = 1; setTimeout(() => hm.style.opacity = 0, 100); }
 function addKillFeed(k,v) { const d=document.createElement('div'); d.className='kill-item'; d.innerHTML=`${k} 🔪 ${v}`; document.getElementById('kill-feed').prepend(d); if(k==="Toi") score+=100; document.getElementById('score').textContent=score; }
-function switchWeapon(i) { if(i<0 || i>=WEAPONS.length) return; currentWeaponIdx=i; document.getElementById('weapon-info').textContent=WEAPONS[i].name; document.getElementById('ammo-val').textContent="∞"; }
+
+function switchWeapon(i) { 
+    if(i<0 || i>=WEAPONS.length) return; 
+    currentWeaponIdx=i; 
+    const w = WEAPONS[i];
+    document.getElementById('weapon-info').textContent=w.name; 
+    document.getElementById('ammo-val').textContent= adminMode ? "∞" : w.ammo;
+    document.getElementById('ammo-max').textContent= adminMode ? "∞" : w.maxAmmo;
+}
+
 function updateLeaderboard() { let p = [{id:"Toi", s:score, me:true}]; for(let id in otherPlayers) p.push({id, s:otherPlayers[id].score, me:false}); p.sort((a,b)=>b.s-a.s); document.getElementById('leaderboard-list').innerHTML = p.slice(0,5).map(x=>`<div class="leader-item ${x.me?'is-me':''}"><span>${x.id}</span><span>${x.s}</span></div>`).join(''); }
 function updateRemote(d) { if(!otherPlayers[d.o]){ otherPlayers[d.o]={mesh:createPlayerMesh(0xff0055, true), score:0}; scene.add(otherPlayers[d.o].mesh); } otherPlayers[d.o].mesh.position.lerp(new THREE.Vector3(d.x,d.y,d.z), 0.2); otherPlayers[d.o].mesh.rotation.y = d.ry; otherPlayers[d.o].score = d.score; otherPlayers[d.o].mesh.healthBar.scale.x = d.hp/100; }
 function removeRemote(id) { if(otherPlayers[id]){ scene.remove(otherPlayers[id].mesh); delete otherPlayers[id]; } }
@@ -422,7 +449,11 @@ function handleAdmin(cmd) {
     const parts = cmd.toLowerCase().split(' ');
     if(parts[0] === 'hp') { hp = parseInt(parts[1]) || 100; document.getElementById('health-bar').style.width = Math.min(100, hp) + "%"; }
     if(parts[0] === 'score') { score = parseInt(parts[1]) || 0; document.getElementById('score').textContent = score; }
-    if(parts[0] === 'god') { adminMode = !adminMode; alert("God Mode: " + adminMode); }
+    if(parts[0] === 'god') { 
+        adminMode = !adminMode; 
+        switchWeapon(currentWeaponIdx); // Update HUD display
+        alert("God Mode & Infinite Ammo: " + adminMode); 
+    }
     if(parts[0] === 'speed') { WEAPONS[currentWeaponIdx].rate = parseInt(parts[1]) || WEAPONS[currentWeaponIdx].rate; }
 }
 
@@ -430,7 +461,6 @@ function setupInputs() {
     window.onkeydown=e=>{ 
         if(e.code === 'F2') {
             if(!adminEnabledByConsole) return;
-            
             const con = document.getElementById('admin-console');
             con.style.display = con.style.display === 'none' ? 'block' : 'none';
             if(con.style.display === 'block') document.getElementById('admin-input').focus();
