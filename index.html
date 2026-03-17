@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Strike - SECURE ADMIN & INFINITE AMMO</title>
+    <title>Neon Strike - INTERIORS UPDATE</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
@@ -49,14 +49,13 @@
         #btn-scope { bottom: 60px; right: 150px; font-size: 20px; z-index: 60; opacity: 0.3; }
         #btn-swap { bottom: 270px; right: 40px; font-size: 16px; border-color: #00ffcc; z-index: 60; }
 
-        /* ADMIN CONSOLE */
         #admin-console { position: fixed; bottom: 10px; left: 10px; background: rgba(0,0,0,0.8); border: 1px solid #ff0055; padding: 5px; z-index: 1000; display: none; }
         #admin-input { background: #000; border: 1px solid #ff0055; color: #0f0; width: 250px; font-family: monospace; outline: none; }
     </style>
 </head>
 <body>
 
-<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">STRIKE</span></h1><p style="color:#888; margin-bottom:20px;">STABILITY UPDATE</p><button id="btn-conn" onclick="connectToCloud()">DÉPLOIEMENT</button></div></div>
+<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">STRIKE</span></h1><p style="color:#888; margin-bottom:20px;">INTERIORS UPDATE</p><button id="btn-conn" onclick="connectToCloud()">DÉPLOIEMENT</button></div></div>
 
 <div id="ui">
     <div class="hud-panel"><div style="font-size:24px; font-weight:bold;">SCORE: <span id="score">0</span></div></div><br>
@@ -100,7 +99,7 @@ let isReloading = false, isSniper = false, dashPower = 0;
 let audioCtx, vy = 0; const GRAVITY = -55; const JUMP_FORCE = 24; let jumpCount = 0;
 let isMobile = false, touchMove = { x: 0, y: 0 }, isFiring = false;
 let adminMode = false;
-    
+
 // --- SYSTÈME DE SÉCURITÉ ADMIN ---
 let adminEnabledByConsole = false;
 window.admin = function() {
@@ -108,7 +107,7 @@ window.admin = function() {
     console.log("%c[ADMIN] Accès F2 déverrouillé.", "color: #00d4ff; font-weight: bold;");
     return "Mode Admin activé. Appuyez sur F2 en jeu.";
 };
-    
+
 const WEAPONS = [
     { name: "Mitraillette", ammo: 50, maxAmmo: 50, rate: 80, dmg: 6, speed: 200, color: 0xff00cc, spread: 0.05, count: 1, size: 0.6 },
     { name: "Fusil d'Assaut", ammo: 30, maxAmmo: 30, rate: 120, dmg: 12, speed: 180, color: 0x00ffcc, spread: 0, count: 1, size: 1 },
@@ -215,26 +214,44 @@ function createPlayerMesh(col, withHealthBar = true) {
 
 function buildMap() {
     const grid = new THREE.GridHelper(1000, 100, 0x003366, 0x001122); scene.add(grid);
-    createWall(0, 0, 0, 30, 30, 1, 0x00d4ff);
-    createWall(0, 1, 0, 10, 10, 15, 0x222244);
-    createWall(0, 16, 0, 40, 40, 1, 0x00d4ff);
+    
+    // CENTRE - ARÈNE OUVERTE (On peut entrer dedans)
+    createWall(0, 0, 0, 50, 50, 1, 0x00d4ff); // Sol
+    createWall(-24, 1, 0, 2, 50, 20, 0x222244); // Mur Gauche
+    createWall(24, 1, 0, 2, 50, 20, 0x222244); // Mur Droit
+    createWall(0, 1, -24, 50, 2, 20, 0x222244); // Mur Fond
+    createWall(-16, 1, 24, 18, 2, 20, 0x222244); // Mur Devant Gauche
+    createWall(16, 1, 24, 18, 2, 20, 0x222244); // Mur Devant Droit (Laisse un trou au centre)
+    createWall(0, 21, 0, 52, 52, 1, 0x00d4ff); // Toit
+    // Obstacles intérieurs de l'arène centrale
+    createWall(0, 1, 0, 8, 8, 5, 0x00ffff);
     createJumpPad(0, 1, 0);
 
-    for(let i=0; i<4; i++) {
-        let x = -30 + i*20;
-        createWall(x, 0, 60, 8, 8, 20, 0xffff00);
-        createWall(x, 20, 60, 12, 12, 1, 0xffff00);
-    }
+    // ZONE INDUSTRIELLE (NORD) - GRAND HANGAR OUVERT
+    createWall(0, 0, 80, 80, 40, 1, 0xffff00); // Sol hangar
+    createWall(-39, 1, 80, 2, 40, 25, 0x444400); // Mur Gauche
+    createWall(39, 1, 80, 2, 40, 25, 0x444400); // Mur Droit
+    createWall(0, 1, 99, 80, 2, 25, 0x444400); // Mur Fond
+    createWall(0, 26, 80, 82, 42, 1, 0xffff00); // Toit Hangar
+    // Caisses et abris dans le hangar
+    createWall(-20, 1, 85, 10, 10, 8, 0xffaa00);
+    createWall(15, 1, 75, 12, 12, 12, 0xffaa00);
+    createJumpPad(-20, 9, 85); // Sur une caisse
 
+    // ZONE PARKOUR (SUD)
     createWall(-50, 8, -50, 15, 15, 1, 0xff00cc);
     createWall(-20, 16, -70, 15, 15, 1, 0xff00cc);
     createWall(20, 24, -50, 15, 15, 1, 0xff00cc);
     createJumpPad(-50, 0, -50);
 
-    for(let i=0; i<15; i++) {
-        createWall(-60 + (Math.random()*20), 0, (Math.random()-0.5)*100, 4, 4, 5, 0x00ffcc);
+    // ZONE RUES (OUEST / EST)
+    for(let i=0; i<20; i++) {
+        let x = (Math.random() > 0.5 ? -1 : 1) * (60 + Math.random()*40);
+        let z = (Math.random()-0.5)*150;
+        createWall(x, 0, z, 8, 8, 6 + Math.random()*15, 0x00ffcc);
     }
 
+    // LIMITES
     const limit = 180;
     createWall(0, 0, limit, limit*2, 10, 50, 0x111122);
     createWall(0, 0, -limit, limit*2, 10, 50, 0x111122);
@@ -411,9 +428,8 @@ function handleAdmin(cmd) {
 
 function setupInputs() {
     window.onkeydown=e=>{ 
-        // --- VÉRIFICATION SÉCURITÉ F2 ---
         if(e.code === 'F2') {
-            if(!adminEnabledByConsole) return; // Ne fait rien si pas déverrouillé via F12
+            if(!adminEnabledByConsole) return;
             
             const con = document.getElementById('admin-console');
             con.style.display = con.style.display === 'none' ? 'block' : 'none';
