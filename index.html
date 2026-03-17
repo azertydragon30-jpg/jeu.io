@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Strike - ADMIN HELP UPDATE</title>
+    <title>Neon Strike - ADMIN OVERLOAD</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
@@ -51,12 +51,12 @@
 
         #admin-console { position: fixed; bottom: 10px; left: 10px; background: rgba(0,0,0,0.8); border: 1px solid #ff0055; padding: 5px; z-index: 1000; display: none; }
         #admin-input { background: #000; border: 1px solid #ff0055; color: #0f0; width: 350px; font-family: monospace; outline: none; padding: 5px; }
-        #admin-help-tip { font-size: 10px; color: #ff0055; margin-top: 5px; }
+        #admin-help { font-size: 10px; color: #ff0055; margin-top: 5px; }
     </style>
 </head>
 <body>
 
-<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">STRIKE</span></h1><p style="color:#888; margin-bottom:20px;">ADMIN & HELP EDITION</p><button id="btn-conn" onclick="connectToCloud()">DÉPLOIEMENT</button></div></div>
+<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">STRIKE</span></h1><p style="color:#888; margin-bottom:20px;">ADMIN OVERLOAD EDITION</p><button id="btn-conn" onclick="connectToCloud()">DÉPLOIEMENT</button></div></div>
 
 <div id="ui">
     <div class="hud-panel"><div style="font-size:24px; font-weight:bold;">SCORE: <span id="score">0</span></div></div><br>
@@ -79,8 +79,8 @@
 <div id="hit-marker"></div>
 
 <div id="admin-console">
-    <input type="text" id="admin-input" placeholder="Tapez une commande (ex: help)...">
-    <div id="admin-help-tip">Tapez 'help' pour la liste complète.</div>
+    <input type="text" id="admin-input" placeholder="Admin CMD...">
+    <div id="admin-help">CMD: hp [n], god, gravity [n], speed [n], spawn bot [n], scan</div>
 </div>
 
 <div id="mobile-controls">
@@ -220,6 +220,7 @@ function createPlayerMesh(col, withHealthBar = true) {
 
 function buildMap() {
     const grid = new THREE.GridHelper(1000, 100, 0x003366, 0x001122); scene.add(grid);
+    
     createWall(0, 0, 0, 50, 50, 1, 0x00d4ff);
     createWall(-24, 1, 0, 2, 50, 20, 0x222244);
     createWall(24, 1, 0, 2, 50, 20, 0x222244);
@@ -435,96 +436,4 @@ function triggerHitMarker() { const hm = document.getElementById('hit-marker'); 
 function addKillFeed(k,v) { const d=document.createElement('div'); d.className='kill-item'; d.innerHTML=`${k} 🔪 ${v}`; document.getElementById('kill-feed').prepend(d); if(k==="Toi") score+=100; document.getElementById('score').textContent=score; }
 
 function switchWeapon(i) { 
-    if(i<0 || i>=WEAPONS.length) return; 
-    currentWeaponIdx=i; 
-    const w = WEAPONS[i];
-    document.getElementById('weapon-info').textContent=w.name; 
-    document.getElementById('ammo-val').textContent= adminMode ? "∞" : w.ammo;
-    document.getElementById('ammo-max').textContent= adminMode ? "∞" : w.maxAmmo;
-}
-
-function updateLeaderboard() { let p = [{id:"Toi", s:score, me:true}]; for(let id in otherPlayers) p.push({id, s:otherPlayers[id].score, me:false}); p.sort((a,b)=>b.s-a.s); document.getElementById('leaderboard-list').innerHTML = p.slice(0,5).map(x=>`<div class="leader-item ${x.me?'is-me':''}"><span>${x.id}</span><span>${x.s}</span></div>`).join(''); }
-function updateRemote(d) { if(!otherPlayers[d.o]){ otherPlayers[d.o]={mesh:createPlayerMesh(0xff0055, true), score:0}; scene.add(otherPlayers[d.o].mesh); } otherPlayers[d.o].mesh.position.lerp(new THREE.Vector3(d.x,d.y,d.z), 0.2); otherPlayers[d.o].mesh.rotation.y = d.ry; otherPlayers[d.o].score = d.score; otherPlayers[d.o].mesh.healthBar.scale.x = d.hp/100; }
-function removeRemote(id) { if(otherPlayers[id]){ scene.remove(otherPlayers[id].mesh); delete otherPlayers[id]; } }
-function startFire() { initAudio(); isFiring = true; }
-function stopFire() { isFiring = false; }
-
-// --- SYSTÈME ADMIN AVEC COMMANDE HELP ---
-function handleAdmin(cmd) {
-    const parts = cmd.toLowerCase().split(' ');
-    
-    // COMMANDE HELP
-    if(parts[0] === 'help') {
-        alert(
-            "COMMANDES ADMIN DISPONIBLES :\n" +
-            "----------------------------\n" +
-            "- help : Affiche cette liste\n" +
-            "- god : Mode invincible + Munitions infinies\n" +
-            "- hp [nombre] : Change ta santé (ex: hp 999)\n" +
-            "- score [nombre] : Change ton score\n" +
-            "- gravity [nombre] : Change la gravité (défaut: -55)\n" +
-            "- jump [nombre] : Force du saut (défaut: 24)\n" +
-            "- speed [nombre] : Vitesse de course (défaut: 32)\n" +
-            "- spawn bot [nombre] : Apparition de bots\n" +
-            "- scan : Active la vision thermique (voir à travers murs)"
-        );
-        return;
-    }
-
-    if(parts[0] === 'hp') { hp = parseInt(parts[1]) || 100; document.getElementById('health-bar').style.width = Math.min(100, hp) + "%"; }
-    if(parts[0] === 'score') { score = parseInt(parts[1]) || 0; document.getElementById('score').textContent = score; }
-    if(parts[0] === 'god') { 
-        adminMode = !adminMode; 
-        switchWeapon(currentWeaponIdx); 
-        alert("God Mode & Infinite Ammo: " + (adminMode ? "ON" : "OFF")); 
-    }
-    if(parts[0] === 'gravity') { currentGravity = parseInt(parts[1]) || -55; }
-    if(parts[0] === 'speed') { playerSpeedBase = parseInt(parts[1]) || 32; }
-    if(parts[0] === 'jump') { currentJumpForce = parseInt(parts[1]) || 24; }
-    if(parts[0] === 'scan') { scanMode = !scanMode; }
-    if(parts[0] === 'spawn' && parts[1] === 'bot') { 
-        let count = parseInt(parts[2]) || 1;
-        for(let i=0; i<count; i++) spawnBot();
-    }
-}
-
-function setupInputs() {
-    window.onkeydown=e=>{ 
-        if(e.code === 'F2') {
-            if(!adminEnabledByConsole) return;
-            const con = document.getElementById('admin-console');
-            con.style.display = con.style.display === 'none' ? 'block' : 'none';
-            if(con.style.display === 'block') document.getElementById('admin-input').focus();
-            return;
-        }
-        if(document.activeElement.id === 'admin-input') {
-            if(e.code === 'Enter') { handleAdmin(document.activeElement.value); document.activeElement.value = ''; }
-            return;
-        }
-        keysDown[e.code]=true; 
-        if(e.code==='Space') jump(); 
-        if(e.code==='KeyR') reload(); 
-        if(e.code==='ShiftLeft') dash(); 
-        if(e.code.startsWith('Digit')) switchWeapon(parseInt(e.code.slice(-1))-1); 
-    };
-    window.onkeyup=e=>keysDown[e.code]=false;
-    document.onmousemove=e=>{ if(document.pointerLockElement) yaw -= e.movementX * 0.003; };
-    window.onmousedown=e=>{ if(document.pointerLockElement){ if(e.button===0) startFire(); if(e.button===2) toggleScope(); } else if(e.target.tagName !== 'INPUT') renderer.domElement.requestPointerLock(); };
-    window.onmouseup=e=>{ if(e.button===0) stopFire(); };
-}
-
-function setupTouchControls() {
-    const sz = document.getElementById('stick-container'), lz = document.getElementById('look-zone');
-    sz.addEventListener('touchmove', e => { e.preventDefault(); const t = e.touches[0], r = sz.getBoundingClientRect(), dx = t.clientX-(r.left+r.width/2), dy = t.clientY-(r.top+r.height/2); touchMove = { x: Math.max(-1, Math.min(1, dx/50)), y: Math.max(-1, Math.min(1, dy/50)) }; document.getElementById('stick').style.transform = `translate(calc(-50% + ${touchMove.x*50}px), calc(-50% + ${touchMove.y*50}px))`; }, {passive:false});
-    sz.addEventListener('touchend', () => { touchMove = {x:0, y:0}; document.getElementById('stick').style.transform = `translate(-50%, -50%)`; });
-    let lx = 0; lz.addEventListener('touchstart', e => lx = e.touches[0].clientX);
-    lz.addEventListener('touchmove', e => { const tx = e.touches[0].clientX; yaw -= (tx-lx)*0.008; lx = tx; }, {passive:false});
-    document.getElementById('btn-fire').addEventListener('touchstart', startFire); document.getElementById('btn-fire').addEventListener('touchend', stopFire);
-    document.getElementById('btn-jump').addEventListener('touchstart', jump); 
-    document.getElementById('btn-dash').addEventListener('touchstart', dash);
-    document.getElementById('btn-scope').addEventListener('touchstart', toggleScope); 
-    document.getElementById('btn-swap').addEventListener('touchstart', () => switchWeapon((currentWeaponIdx+1)%5));
-}
-</script>
-</body>
-</html>
+    if(i<0 || i>=WEAPONS.length) return;
