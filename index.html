@@ -100,15 +100,15 @@ let isReloading = false, isSniper = false, dashPower = 0;
 let audioCtx, vy = 0; const GRAVITY = -55; const JUMP_FORCE = 24; let jumpCount = 0;
 let isMobile = false, touchMove = { x: 0, y: 0 }, isFiring = false;
 let adminMode = false;
-
-// --- NOUVEAU SYSTÈME DE SÉCURITÉ ADMIN ---
+    
+// --- SYSTÈME DE SÉCURITÉ ADMIN ---
 let adminEnabledByConsole = false;
-window.enableAdmin = function() {
+window.admin = function() {
     adminEnabledByConsole = true;
-    console.log("%c[ADMIN] Mode déverrouillé ! Appuyez sur F2 en jeu.", "color: #00d4ff; font-weight: bold; font-size: 16px;");
-    return "Système déverrouillé.";
+    console.log("%c[ADMIN] Accès F2 déverrouillé.", "color: #00d4ff; font-weight: bold;");
+    return "Mode Admin activé. Appuyez sur F2 en jeu.";
 };
-
+    
 const WEAPONS = [
     { name: "Mitraillette", ammo: 50, maxAmmo: 50, rate: 80, dmg: 6, speed: 200, color: 0xff00cc, spread: 0.05, count: 1, size: 0.6 },
     { name: "Fusil d'Assaut", ammo: 30, maxAmmo: 30, rate: 120, dmg: 12, speed: 180, color: 0x00ffcc, spread: 0, count: 1, size: 1 },
