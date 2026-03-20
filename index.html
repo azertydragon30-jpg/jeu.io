@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Strike - Collision & Dynamic UI</title>
+    <title>Neon Strike - EVOLVED MAP</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
@@ -36,7 +36,6 @@
         button { padding: 15px 40px; background: linear-gradient(45deg, #00d4ff, #0088aa); border: none; font-weight: 900; letter-spacing: 2px; cursor: pointer; color: #000; transition: transform 0.1s; text-transform: uppercase; }
         button:hover { transform: scale(1.05); filter: brightness(1.2); }
 
-        /* Mobile controls cachés par défaut */
         #mobile-controls { display: none; position: absolute; inset: 0; z-index: 50; pointer-events: none; }
         .touch-zone { position: absolute; bottom: 50px; width: 150px; height: 150px; pointer-events: auto; }
         #stick-container { left: 30px; border: 2px solid rgba(255,255,255,0.2); border-radius: 50%; background: rgba(0,0,0,0.2); }
@@ -60,7 +59,7 @@
 </head>
 <body>
 
-<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">STRIKE</span></h1><p style="color:#888; margin-bottom:20px;">SUMMONER UPDATE</p><button id="btn-conn" onclick="connectToCloud()">DÉPLOIEMENT</button></div></div>
+<div id="login"><div class="box"><h1>NEON <span style="color:#00d4ff">STRIKE</span></h1><p style="color:#888; margin-bottom:20px;">EVOLVED MAP UPDATE</p><button id="btn-conn" onclick="connectToCloud()">DÉPLOIEMENT</button></div></div>
 
 <div id="ui">
     <div class="hud-panel"><div style="font-size:24px; font-weight:bold;">SCORE: <span id="score">0</span></div></div><br>
@@ -174,8 +173,8 @@ function playSound(type, vol=0.1) {
 
 function initGame() {
     scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x050a15, 0.01);
-    camera = new THREE.PerspectiveCamera(80, window.innerWidth/window.innerHeight, 0.1, 1000);
+    scene.fog = new THREE.FogExp2(0x050a15, 0.005);
+    camera = new THREE.PerspectiveCamera(80, window.innerWidth/window.innerHeight, 0.1, 2000);
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -200,6 +199,13 @@ function initGame() {
         document.getElementById('mobile-controls').style.display = 'block';
         document.getElementById('btn-invoke').style.display = 'flex';
         setupTouchControls();
+    } else {
+        document.getElementById('mobile-controls').style.display = 'none'; 
+        const invokeBtn = document.getElementById('btn-invoke');
+        invokeBtn.style.display = 'flex';
+        invokeBtn.style.position = 'fixed';
+        invokeBtn.style.bottom = '20px';
+        invokeBtn.style.left = '20px';
     }
     
     loop();
@@ -224,42 +230,85 @@ function createPlayerMesh(col, withHealthBar = true) {
 }
 
 function buildMap() {
-    const grid = new THREE.GridHelper(1000, 100, 0x003366, 0x001122); scene.add(grid);
-    createWall(0, 0, 0, 50, 50, 1, 0x00d4ff);
-    createWall(-24, 1, 0, 2, 50, 20, 0x222244);
-    createWall(24, 1, 0, 2, 50, 20, 0x222244);
-    createWall(0, 1, -24, 50, 2, 20, 0x222244);
-    createWall(-16, 1, 24, 18, 2, 20, 0x222244);
-    createWall(16, 1, 24, 18, 2, 20, 0x222244);
-    createWall(0, 21, 0, 52, 52, 1, 0x00d4ff);
-    createWall(0, 1, 0, 8, 8, 5, 0x00ffff);
-    createJumpPad(0, 1, 0);
+    const grid = new THREE.GridHelper(2000, 200, 0x003366, 0x001122); scene.add(grid);
+    
+    createWall(0, -1, 0, 2000, 2000, 1, 0x050a15); // Sol global pour rattraper les chutes
 
-    createWall(0, 0, 80, 80, 40, 1, 0xffff00);
-    createWall(-39, 1, 80, 2, 40, 25, 0x444400);
-    createWall(39, 1, 80, 2, 40, 25, 0x444400);
-    createWall(0, 1, 99, 80, 2, 25, 0x444400);
-    createWall(0, 26, 80, 82, 42, 1, 0xffff00);
-    createWall(-20, 1, 85, 10, 10, 8, 0xffaa00);
-    createWall(15, 1, 75, 12, 12, 12, 0xffaa00);
-    createJumpPad(-20, 9, 85);
+    // CENTRE - ARÈNE MULTINIVEAUX
+    createWall(0, 0, 0, 60, 60, 1, 0x00d4ff); // Sol centre
+    createWall(-29, 1, 0, 2, 60, 20, 0x222244); // Mur Gauche
+    createWall(29, 1, 0, 2, 60, 20, 0x222244); // Mur Droit
+    createWall(0, 1, -29, 60, 2, 20, 0x222244); // Mur Fond
+    createWall(-20, 1, 29, 22, 2, 20, 0x222244); // Mur Devant Gauche
+    createWall(20, 1, 29, 22, 2, 20, 0x222244); // Mur Devant Droit (Porte)
+    
+    createWall(-15, 1, -15, 10, 10, 8, 0x00ffff); // Plateforme int
+    createWall(15, 1, 15, 10, 10, 8, 0x00ffff); // Plateforme int
+    createWall(0, 1, 0, 8, 8, 12, 0x00ffff); // Pilier central
+    createJumpPad(0, 13, 0); // Pad Pilier central
+    
+    createWall(-15, 20, 0, 30, 60, 1, 0x00d4ff); // Toit Gauche
+    createWall(15, 20, 0, 30, 60, 1, 0x00d4ff); // Toit Droit
+    createWall(0, 20, -20, 10, 20, 1, 0x00d4ff); // Toit Fond
+    createWall(0, 20, 20, 10, 20, 1, 0x00d4ff); // Toit Devant
+    
+    createWall(0, 20, -50, 10, 40, 1, 0xff00cc); // Ponts d'accès extérieurs
+    createWall(0, 20, 50, 10, 40, 1, 0xff00cc);
+    createWall(-50, 20, 0, 40, 10, 1, 0xff00cc);
+    createWall(50, 20, 0, 40, 10, 1, 0xff00cc);
 
-    createWall(-50, 8, -50, 15, 15, 1, 0xff00cc);
-    createWall(-20, 16, -70, 15, 15, 1, 0xff00cc);
-    createWall(20, 24, -50, 15, 15, 1, 0xff00cc);
-    createJumpPad(-50, 0, -50);
+    // ZONE NORD - COMPLEXE INDUSTRIEL
+    createWall(0, 0, -100, 100, 60, 1, 0xffff00);
+    createWall(-49, 1, -100, 2, 60, 30, 0x444400);
+    createWall(49, 1, -100, 2, 60, 30, 0x444400);
+    createWall(0, 1, -129, 100, 2, 30, 0x444400);
+    createWall(0, 31, -100, 102, 62, 1, 0xffff00);
+    createWall(-30, 1, -90, 15, 10, 10, 0xffaa00);
+    createWall(-30, 11, -90, 10, 8, 10, 0xffaa00);
+    createWall(20, 1, -110, 12, 25, 15, 0xffaa00);
+    createWall(0, 1, -95, 8, 8, 5, 0xffaa00);
+    createJumpPad(-30, 21, -90);
 
-    for(let i=0; i<20; i++) {
-        let x = (Math.random() > 0.5 ? -1 : 1) * (60 + Math.random()*40);
-        let z = (Math.random()-0.5)*150;
-        createWall(x, 0, z, 8, 8, 6 + Math.random()*15, 0x00ffcc);
+    // ZONE SUD - PARKOUR FLOTTANT
+    createWall(-60, 5, 80, 15, 15, 1, 0xff00cc);
+    createWall(-35, 12, 100, 15, 15, 1, 0xff00cc);
+    createWall(-10, 19, 80, 15, 15, 1, 0xff00cc);
+    createWall(15, 26, 100, 15, 15, 1, 0xff00cc);
+    createWall(40, 33, 80, 15, 15, 1, 0xff00cc);
+    createWall(65, 40, 100, 25, 25, 1, 0xff00cc);
+    createJumpPad(-60, 0, 80);
+
+    // LES 4 TOURS SNIPER GÉANTES
+    const tDist = 120;
+    const tPositions = [[tDist, tDist], [-tDist, tDist], [tDist, -tDist], [-tDist, -tDist]];
+    tPositions.forEach(pos => {
+        createWall(pos[0], 0, pos[1], 15, 15, 40, 0x00ffcc); // Base
+        createWall(pos[0], 40, pos[1], 25, 25, 1, 0xffffff); // Plateforme haute
+        createWall(pos[0], 41, pos[1]+12, 25, 1, 3, 0x555555); // Garde-corps
+        createWall(pos[0], 41, pos[1]-12, 25, 1, 3, 0x555555);
+        createWall(pos[0]+12, 41, pos[1], 1, 25, 3, 0x555555);
+        createWall(pos[0]-12, 41, pos[1], 1, 25, 3, 0x555555);
+        createJumpPad(pos[0] > 0 ? pos[0]-15 : pos[0]+15, 0, pos[1]); // Pad d'accès au sol
+    });
+
+    // LABYRINTHE URBAIN (Est & Ouest)
+    for(let i=0; i<40; i++) {
+        let x = (Math.random() > 0.5 ? -1 : 1) * (70 + Math.random()*80);
+        let z = (Math.random()-0.5)*200;
+        let w = 10 + Math.random()*15;
+        let d = 10 + Math.random()*15;
+        let h = 10 + Math.random()*30;
+        let col = Math.random() > 0.5 ? 0x00ffcc : 0xff00ff;
+        createWall(x, 0, z, w, d, h, col);
+        if(Math.random() > 0.7) createJumpPad(x + w/2 + 3, 0, z);
     }
 
-    const limit = 180;
-    createWall(0, 0, limit, limit*2, 10, 50, 0x111122);
-    createWall(0, 0, -limit, limit*2, 10, 50, 0x111122);
-    createWall(limit, 0, 0, 10, limit*2, 50, 0x111122);
-    createWall(-limit, 0, 0, 10, limit*2, 50, 0x111122);
+    // LIMITES EXTERIEURES AGRANDIES
+    const limit = 250;
+    createWall(0, 0, limit, limit*2, 10, 100, 0x111122);
+    createWall(0, 0, -limit, limit*2, 10, 100, 0x111122);
+    createWall(limit, 0, 0, 10, limit*2, 100, 0x111122);
+    createWall(-limit, 0, 0, 10, limit*2, 100, 0x111122);
 }
 
 function createWall(x, y, z, w, d, h, color) {
@@ -296,6 +345,8 @@ function invokeBot() {
         spawnBot();
         addKillFeed("SUMMON", "Nouveau Bot !");
         playSound('laser', 0.5);
+    } else {
+        alert("Pas assez de points ! (Besoin de 500)");
     }
 }
 
@@ -338,7 +389,6 @@ function loop() {
     
     if(move.length() > 0) {
         let s = move.clone().normalize().multiplyScalar(moveSpeed * dt);
-        // RÉTABLISSEMENT DES COLLISIONS
         if(!checkWall(playerGroup.position.x + s.x, playerGroup.position.y + 1, playerGroup.position.z)) playerGroup.position.x += s.x;
         if(!checkWall(playerGroup.position.x, playerGroup.position.y + 1, playerGroup.position.z + s.z)) playerGroup.position.z += s.z;
     }
@@ -386,7 +436,6 @@ function loop() {
         const b = bullets[i]; b.mesh.position.addScaledVector(b.dir, b.speed * dt);
         if(checkWall(b.mesh.position.x, b.mesh.position.y, b.mesh.position.z) || b.mesh.position.y < -50) { scene.remove(b.mesh); bullets.splice(i,1); continue; }
         
-        // HITBOX MAINTENUE À 1.4
         const playerHitPos = playerGroup.position.clone().add(new THREE.Vector3(0, 1.4, 0));
 
         if(b.o === myID) {
@@ -413,11 +462,13 @@ function shoot() {
     const w = WEAPONS[currentWeaponIdx];
     if(isReloading) return;
     if(Date.now() - lastShoot < w.rate) return;
+
     if(!adminMode) {
         if(w.ammo <= 0) { reload(); return; }
         w.ammo--;
         document.getElementById('ammo-val').textContent = w.ammo;
-    }
+    } else document.getElementById('ammo-val').textContent = "∞";
+
     lastShoot = Date.now(); playSound('shoot');
     for(let i=0; i<w.count; i++) {
         const spread = (Math.random()-0.5) * w.spread;
@@ -427,7 +478,7 @@ function shoot() {
 }
 
 function reload() {
-    if(isReloading) return;
+    if(isReloading || adminMode) return;
     isReloading = true; document.getElementById('reload-msg').style.display = 'block';
     setTimeout(() => {
         WEAPONS[currentWeaponIdx].ammo = WEAPONS[currentWeaponIdx].maxAmmo;
