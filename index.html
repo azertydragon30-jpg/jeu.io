@@ -284,10 +284,13 @@ function buildMap() {
     tPositions.forEach(pos => {
         createWall(pos[0], 0, pos[1], 15, 15, 40, 0x00ffcc); // Base
         createWall(pos[0], 40, pos[1], 25, 25, 1, 0xffffff); // Plateforme haute
-        createWall(pos[0], 41, pos[1]+12, 25, 1, 3, 0x555555); // Garde-corps
-        createWall(pos[0], 41, pos[1]-12, 25, 1, 3, 0x555555);
-        createWall(pos[0]+12, 41, pos[1], 1, 25, 3, 0x555555);
-        createWall(pos[0]-12, 41, pos[1], 1, 25, 3, 0x555555);
+        
+        // MURS DE GARDE-CORPS ABAISSÉS (Hauteur 1 au lieu de 3, et placés à 40.5)
+        createWall(pos[0], 40.5, pos[1]+12, 25, 1, 1, 0x555555);
+        createWall(pos[0], 40.5, pos[1]-12, 25, 1, 1, 0x555555);
+        createWall(pos[0]+12, 40.5, pos[1], 1, 25, 1, 0x555555);
+        createWall(pos[0]-12, 40.5, pos[1], 1, 25, 1, 0x555555);
+        
         createJumpPad(pos[0] > 0 ? pos[0]-15 : pos[0]+15, 0, pos[1]); // Pad d'accès au sol
     });
 
@@ -451,8 +454,14 @@ function loop() {
         }
     }
 
+    // GESTION DU PITCH EXCLUSIF AU SNIPER POUR LA CAMERA
+    let curPitch = isSniper ? pitch : 0;
     camera.position.lerp(new THREE.Vector3(playerGroup.position.x - Math.sin(yaw)*13, playerGroup.position.y + (isSniper?1.8:8), playerGroup.position.z - Math.cos(yaw)*13), 0.2);
-    camera.lookAt(playerGroup.position.x + Math.sin(yaw), playerGroup.position.y + (isSniper?1.8:4), playerGroup.position.z + Math.cos(yaw));
+    camera.lookAt(
+        playerGroup.position.x + Math.sin(yaw) * Math.cos(curPitch), 
+        playerGroup.position.y + (isSniper?1.8:4) + Math.sin(curPitch), 
+        playerGroup.position.z + Math.cos(yaw) * Math.cos(curPitch)
+    );
     
     if(now - lastSync > 50) { channel.publish('p', { t:'m', o:myID, x:playerGroup.position.x, y:playerGroup.position.y, z:playerGroup.position.z, ry:yaw, score, hp }); lastSync = now; updateLeaderboard(); }
     renderer.render(scene, camera);
@@ -470,9 +479,18 @@ function shoot() {
     } else document.getElementById('ammo-val').textContent = "∞";
 
     lastShoot = Date.now(); playSound('shoot');
+    let curPitch = isSniper ? pitch : 0;
+    
     for(let i=0; i<w.count; i++) {
         const spread = (Math.random()-0.5) * w.spread;
-        const d = { t:'f', o:myID, x:playerGroup.position.x, y:playerGroup.position.y+1.8, z:playerGroup.position.z, dx:Math.sin(yaw+spread), dy:Math.sin(pitch), dz:Math.cos(yaw+spread), spd:w.speed, dmg:w.dmg, col:w.color, sz:w.size };
+        // GESTION DU PITCH EXCLUSIF AU SNIPER POUR LES BALLES
+        const d = { 
+            t:'f', o:myID, x:playerGroup.position.x, y:playerGroup.position.y+1.8, z:playerGroup.position.z, 
+            dx:Math.sin(yaw+spread)*Math.cos(curPitch), 
+            dy:Math.sin(curPitch), 
+            dz:Math.cos(yaw+spread)*Math.cos(curPitch), 
+            spd:w.speed, dmg:w.dmg, col:w.color, sz:w.size 
+        };
         channel.publish('p', d); createBullet(d);
     }
 }
@@ -503,6 +521,11 @@ function addKillFeed(k,v) { const d=document.createElement('div'); d.className='
 
 function switchWeapon(i) { 
     if(i<0 || i>=WEAPONS.length) return; 
+    
+    // On réinitialise l'état sniper si l'arme change
+    isSniper = false; pitch = 0; camera.fov = 80; camera.updateProjectionMatrix(); 
+    document.getElementById('sniper-scope').style.display = 'none'; playerGroup.visible = true;
+
     currentWeaponIdx=i; const w = WEAPONS[i];
     document.getElementById('weapon-info').textContent=w.name; 
     document.getElementById('ammo-val').textContent= adminMode ? "∞" : w.ammo;
@@ -541,7 +564,20 @@ function setupInputs() {
         if(e.code.startsWith('Digit')) switchWeapon(parseInt(e.code.slice(-1))-1); 
     };
     window.onkeyup=e=>keysDown[e.code]=false;
-    document.onmousemove=e=>{ if(document.pointerLockElement) yaw -= e.movementX * 0.003; };
+    
+    // GESTION DU PITCH SOURIS UNIQUEMENT EN SNIPER
+    document.onmousemove = e => { 
+        if(document.pointerLockElement) {
+            yaw -= e.movementX * 0.003; 
+            if(isSniper) {
+                pitch -= e.movementY * 0.003;
+                pitch = Math.max(-Math.PI/2.1, Math.min(Math.PI/2.1, pitch)); // Bloquer pour ne pas faire de looping
+            } else {
+                pitch = 0;
+            }
+        } 
+    };
+
     window.onmousedown=e=>{ if(document.pointerLockElement){ if(e.button===0) startFire(); if(e.button===2) toggleScope(); } else if(e.target.closest('.mob-btn') === null && e.target.tagName !== 'INPUT') renderer.domElement.requestPointerLock(); };
     window.onmouseup=e=>{ if(e.button===0) stopFire(); };
 }
@@ -550,8 +586,23 @@ function setupTouchControls() {
     const sz = document.getElementById('stick-container'), lz = document.getElementById('look-zone');
     sz.addEventListener('touchmove', e => { e.preventDefault(); const t = e.touches[0], r = sz.getBoundingClientRect(), dx = t.clientX-(r.left+r.width/2), dy = t.clientY-(r.top+r.height/2); touchMove = { x: Math.max(-1, Math.min(1, dx/50)), y: Math.max(-1, Math.min(1, dy/50)) }; document.getElementById('stick').style.transform = `translate(calc(-50% + ${touchMove.x*50}px), calc(-50% + ${touchMove.y*50}px))`; }, {passive:false});
     sz.addEventListener('touchend', () => { touchMove = {x:0, y:0}; document.getElementById('stick').style.transform = `translate(-50%, -50%)`; });
-    let lx = 0; lz.addEventListener('touchstart', e => lx = e.touches[0].clientX);
-    lz.addEventListener('touchmove', e => { const tx = e.touches[0].clientX; yaw -= (tx-lx)*0.008; lx = tx; }, {passive:false});
+    
+    // GESTION DU PITCH TACTILE UNIQUEMENT EN SNIPER
+    let lx = 0, ly = 0; 
+    lz.addEventListener('touchstart', e => { lx = e.touches[0].clientX; ly = e.touches[0].clientY; });
+    lz.addEventListener('touchmove', e => { 
+        const tx = e.touches[0].clientX; 
+        const ty = e.touches[0].clientY;
+        yaw -= (tx-lx)*0.008; 
+        if(isSniper) {
+            pitch -= (ty-ly)*0.008;
+            pitch = Math.max(-Math.PI/2.1, Math.min(Math.PI/2.1, pitch));
+        } else {
+            pitch = 0;
+        }
+        lx = tx; ly = ty; 
+    }, {passive:false});
+
     document.getElementById('btn-fire').addEventListener('touchstart', startFire); document.getElementById('btn-fire').addEventListener('touchend', stopFire);
     document.getElementById('btn-jump').addEventListener('touchstart', jump); 
     document.getElementById('btn-dash').addEventListener('touchstart', dash);
