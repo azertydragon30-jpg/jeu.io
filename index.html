@@ -94,9 +94,9 @@
     <div id="btn-dash" class="mob-btn">⚡</div>
     <div id="btn-scope" class="mob-btn">🎯</div>
     <div id="btn-swap" class="mob-btn">SWAP</div>
-    
-    <div id="btn-invoke" class="mob-btn" onclick="invokeBot()">🤖<div id="invoke-label">500 PTS</div></div>
 </div>
+
+<div id="btn-invoke" class="mob-btn" onclick="invokeBot()">🤖<div id="invoke-label">500 PTS</div></div>
 
 <script>
 const KEYS_CONFIG = ['hoXqWQ.xS6MJA:4jw_S7dp30pIrB7Sm3tCM6S4WQa57PAqkPdp-WN-Ros'];
@@ -148,8 +148,18 @@ async function connectToCloud() {
 
 function checkMobile() {
     isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 800;
-    document.getElementById('mobile-controls').style.display = 'block'; 
-    if (isMobile) setupTouchControls(); 
+    if (isMobile) {
+        document.getElementById('mobile-controls').style.display = 'block'; 
+        setupTouchControls(); 
+    } else {
+        document.getElementById('mobile-controls').style.display = 'none'; 
+        // Sur PC, on s'assure que le bouton d'invocation est toujours cliquable avec la souris
+        const invokeBtn = document.getElementById('btn-invoke');
+        invokeBtn.style.display = 'flex';
+        invokeBtn.style.position = 'fixed';
+        invokeBtn.style.bottom = '20px';
+        invokeBtn.style.left = '20px';
+    }
 }
 
 function handleMessage(m) {
@@ -331,7 +341,7 @@ function loop() {
     if(keysDown['KeyD']) move.sub(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
     
     if(move.length() > 0) {
-        let s = move.normalize().multiplyScalar(moveSpeed * dt);
+        let s = move.clone().normalize().multiplyScalar(moveSpeed * dt);
         if(!checkWall(playerGroup.position.x + s.x, playerGroup.position.y + 1, playerGroup.position.z)) playerGroup.position.x += s.x;
         if(!checkWall(playerGroup.position.x, playerGroup.position.y + 1, playerGroup.position.z + s.z)) playerGroup.position.z += s.z;
     }
