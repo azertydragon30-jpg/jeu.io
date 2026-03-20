@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Strike - NOCLIP & MOBILE UI</title>
+    <title>Neon Strike - Collision & Dynamic UI</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
@@ -36,8 +36,8 @@
         button { padding: 15px 40px; background: linear-gradient(45deg, #00d4ff, #0088aa); border: none; font-weight: 900; letter-spacing: 2px; cursor: pointer; color: #000; transition: transform 0.1s; text-transform: uppercase; }
         button:hover { transform: scale(1.05); filter: brightness(1.2); }
 
-        /* Mobile controls forcés */
-        #mobile-controls { display: block; position: absolute; inset: 0; z-index: 50; pointer-events: none; }
+        /* Mobile controls cachés par défaut */
+        #mobile-controls { display: none; position: absolute; inset: 0; z-index: 50; pointer-events: none; }
         .touch-zone { position: absolute; bottom: 50px; width: 150px; height: 150px; pointer-events: auto; }
         #stick-container { left: 30px; border: 2px solid rgba(255,255,255,0.2); border-radius: 50%; background: rgba(0,0,0,0.2); }
         #stick { position: absolute; top: 50%; left: 50%; width: 50px; height: 50px; background: rgba(0, 212, 255, 0.5); border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; }
@@ -97,7 +97,7 @@
     <div id="btn-swap" class="mob-btn">SWAP</div>
 </div>
 
-<div id="btn-invoke" class="mob-btn" onclick="invokeBot()">🤖<div id="invoke-label">500 PTS</div></div>
+<div id="btn-invoke" class="mob-btn" onclick="invokeBot()" style="display:none;">🤖<div id="invoke-label">500 PTS</div></div>
 
 <script>
 const KEYS_CONFIG = ['hoXqWQ.xS6MJA:4jw_S7dp30pIrB7Sm3tCM6S4WQa57PAqkPdp-WN-Ros'];
@@ -109,7 +109,8 @@ let isReloading = false, isSniper = false, dashPower = 0;
 let audioCtx, vy = 0; 
 let currentGravity = -55; let currentJumpForce = 24; let jumpCount = 0;
 let playerSpeedBase = 32;
-let isMobile = true, touchMove = { x: 0, y: 0 }, isFiring = false;
+let isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 0);
+let touchMove = { x: 0, y: 0 }, isFiring = false;
 let adminMode = false, scanMode = false;
 let adminEnabledByConsole = false;
 
@@ -194,7 +195,13 @@ function initGame() {
     for(let i=0; i<4; i++) spawnBot();
     switchWeapon(0); 
     setupInputs();
-    setupTouchControls(); // Activer les contrôles tactiles même sur PC
+
+    if(isMobile) {
+        document.getElementById('mobile-controls').style.display = 'block';
+        document.getElementById('btn-invoke').style.display = 'flex';
+        setupTouchControls();
+    }
+    
     loop();
 }
 
@@ -289,12 +296,9 @@ function invokeBot() {
         spawnBot();
         addKillFeed("SUMMON", "Nouveau Bot !");
         playSound('laser', 0.5);
-    } else {
-        alert("Pas assez de points ! (Besoin de 500)");
     }
 }
 
-// Fonction de collision (conservée mais bypassée par le NOCLIP)
 function checkWall(x, y, z) {
     for (let w of walls) {
         if (x > w.minX - 0.4 && x < w.maxX + 0.4 && z > w.minZ - 0.4 && z < w.maxZ + 0.4) {
@@ -322,13 +326,11 @@ function loop() {
     let moveSpeed = playerSpeedBase + dashPower; dashPower *= 0.9;
     const move = new THREE.Vector3();
     
-    // Joystick tactile
     if (touchMove.x !== 0 || touchMove.y !== 0) {
         move.add(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)).multiplyScalar(-touchMove.y));
         move.add(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)).multiplyScalar(-touchMove.x));
     }
     
-    // Clavier
     if(keysDown['KeyW']) move.add(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
     if(keysDown['KeyS']) move.sub(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
     if(keysDown['KeyA']) move.add(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
@@ -336,9 +338,9 @@ function loop() {
     
     if(move.length() > 0) {
         let s = move.clone().normalize().multiplyScalar(moveSpeed * dt);
-        // NOCLIP ACTIF : On ne vérifie plus checkWall ici
-        playerGroup.position.x += s.x;
-        playerGroup.position.z += s.z;
+        // RÉTABLISSEMENT DES COLLISIONS
+        if(!checkWall(playerGroup.position.x + s.x, playerGroup.position.y + 1, playerGroup.position.z)) playerGroup.position.x += s.x;
+        if(!checkWall(playerGroup.position.x, playerGroup.position.y + 1, playerGroup.position.z + s.z)) playerGroup.position.z += s.z;
     }
 
     vy += currentGravity * dt;
@@ -384,7 +386,7 @@ function loop() {
         const b = bullets[i]; b.mesh.position.addScaledVector(b.dir, b.speed * dt);
         if(checkWall(b.mesh.position.x, b.mesh.position.y, b.mesh.position.z) || b.mesh.position.y < -50) { scene.remove(b.mesh); bullets.splice(i,1); continue; }
         
-        // CORRECTION HITBOX : playerGroup.position + 1.4 au lieu de 1.0 pour être au centre du buste
+        // HITBOX MAINTENUE À 1.4
         const playerHitPos = playerGroup.position.clone().add(new THREE.Vector3(0, 1.4, 0));
 
         if(b.o === myID) {
@@ -411,13 +413,11 @@ function shoot() {
     const w = WEAPONS[currentWeaponIdx];
     if(isReloading) return;
     if(Date.now() - lastShoot < w.rate) return;
-
     if(!adminMode) {
         if(w.ammo <= 0) { reload(); return; }
         w.ammo--;
         document.getElementById('ammo-val').textContent = w.ammo;
-    } else document.getElementById('ammo-val').textContent = "∞";
-
+    }
     lastShoot = Date.now(); playSound('shoot');
     for(let i=0; i<w.count; i++) {
         const spread = (Math.random()-0.5) * w.spread;
@@ -427,7 +427,7 @@ function shoot() {
 }
 
 function reload() {
-    if(isReloading || adminMode) return;
+    if(isReloading) return;
     isReloading = true; document.getElementById('reload-msg').style.display = 'block';
     setTimeout(() => {
         WEAPONS[currentWeaponIdx].ammo = WEAPONS[currentWeaponIdx].maxAmmo;
@@ -466,15 +466,13 @@ function stopFire() { isFiring = false; }
 
 function handleAdmin(cmd) {
     const parts = cmd.toLowerCase().split(' ');
-    if(parts[0] === 'help') { alert("COMMANDES ADMIN : help, god, hp [n], score [n], gravity [n], jump [n], speed [n], spawn bot [n], scan"); return; }
+    if(parts[0] === 'help') { alert("COMMANDES ADMIN : help, god, hp [n], score [n], gravity [n], jump [n], speed [n], scan"); return; }
     if(parts[0] === 'hp') { hp = parseInt(parts[1]) || 100; document.getElementById('health-bar').style.width = Math.min(100, hp) + "%"; }
     if(parts[0] === 'score') { score = parseInt(parts[1]) || 0; document.getElementById('score').textContent = score; }
     if(parts[0] === 'god') { adminMode = !adminMode; switchWeapon(currentWeaponIdx); }
     if(parts[0] === 'gravity') currentGravity = parseInt(parts[1]) || -55;
     if(parts[0] === 'speed') playerSpeedBase = parseInt(parts[1]) || 32;
-    if(parts[0] === 'jump') currentJumpForce = parseInt(parts[1]) || 24;
     if(parts[0] === 'scan') scanMode = !scanMode;
-    if(parts[0] === 'spawn' && parts[1] === 'bot') { let count = parseInt(parts[2]) || 1; for(let i=0; i<count; i++) spawnBot(); }
 }
 
 function setupInputs() {
