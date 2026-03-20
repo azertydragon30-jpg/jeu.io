@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Strike - BOT SUMMONER</title>
+    <title>Neon Strike - NOCLIP & MOBILE UI</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
@@ -36,7 +36,8 @@
         button { padding: 15px 40px; background: linear-gradient(45deg, #00d4ff, #0088aa); border: none; font-weight: 900; letter-spacing: 2px; cursor: pointer; color: #000; transition: transform 0.1s; text-transform: uppercase; }
         button:hover { transform: scale(1.05); filter: brightness(1.2); }
 
-        #mobile-controls { display: none; position: absolute; inset: 0; z-index: 50; pointer-events: none; }
+        /* Mobile controls forcés */
+        #mobile-controls { display: block; position: absolute; inset: 0; z-index: 50; pointer-events: none; }
         .touch-zone { position: absolute; bottom: 50px; width: 150px; height: 150px; pointer-events: auto; }
         #stick-container { left: 30px; border: 2px solid rgba(255,255,255,0.2); border-radius: 50%; background: rgba(0,0,0,0.2); }
         #stick { position: absolute; top: 50%; left: 50%; width: 50px; height: 50px; background: rgba(0, 212, 255, 0.5); border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; }
@@ -108,7 +109,7 @@ let isReloading = false, isSniper = false, dashPower = 0;
 let audioCtx, vy = 0; 
 let currentGravity = -55; let currentJumpForce = 24; let jumpCount = 0;
 let playerSpeedBase = 32;
-let isMobile = false, touchMove = { x: 0, y: 0 }, isFiring = false;
+let isMobile = true, touchMove = { x: 0, y: 0 }, isFiring = false;
 let adminMode = false, scanMode = false;
 let adminEnabledByConsole = false;
 
@@ -130,7 +131,6 @@ let currentWeaponIdx = 0;
 async function connectToCloud() {
     const btn = document.getElementById('btn-conn');
     btn.textContent = "CHARGEMENT..."; btn.disabled = true;
-    checkMobile();
     myID = "Ghost-" + Math.floor(Math.random()*999);
     initAudio(); 
     try {
@@ -144,22 +144,6 @@ async function connectToCloud() {
             document.getElementById('login').style.display = 'none';
         });
     } catch (e) { alert("Erreur: " + e.message); btn.disabled = false; }
-}
-
-function checkMobile() {
-    isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 800;
-    if (isMobile) {
-        document.getElementById('mobile-controls').style.display = 'block'; 
-        setupTouchControls(); 
-    } else {
-        document.getElementById('mobile-controls').style.display = 'none'; 
-        // Sur PC, on s'assure que le bouton d'invocation est toujours cliquable avec la souris
-        const invokeBtn = document.getElementById('btn-invoke');
-        invokeBtn.style.display = 'flex';
-        invokeBtn.style.position = 'fixed';
-        invokeBtn.style.bottom = '20px';
-        invokeBtn.style.left = '20px';
-    }
 }
 
 function handleMessage(m) {
@@ -210,6 +194,7 @@ function initGame() {
     for(let i=0; i<4; i++) spawnBot();
     switchWeapon(0); 
     setupInputs();
+    setupTouchControls(); // Activer les contrôles tactiles même sur PC
     loop();
 }
 
@@ -309,6 +294,7 @@ function invokeBot() {
     }
 }
 
+// Fonction de collision (conservée mais bypassée par le NOCLIP)
 function checkWall(x, y, z) {
     for (let w of walls) {
         if (x > w.minX - 0.4 && x < w.maxX + 0.4 && z > w.minZ - 0.4 && z < w.maxZ + 0.4) {
@@ -335,6 +321,14 @@ function loop() {
 
     let moveSpeed = playerSpeedBase + dashPower; dashPower *= 0.9;
     const move = new THREE.Vector3();
+    
+    // Joystick tactile
+    if (touchMove.x !== 0 || touchMove.y !== 0) {
+        move.add(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)).multiplyScalar(-touchMove.y));
+        move.add(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)).multiplyScalar(-touchMove.x));
+    }
+    
+    // Clavier
     if(keysDown['KeyW']) move.add(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
     if(keysDown['KeyS']) move.sub(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)));
     if(keysDown['KeyA']) move.add(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)));
@@ -342,8 +336,9 @@ function loop() {
     
     if(move.length() > 0) {
         let s = move.clone().normalize().multiplyScalar(moveSpeed * dt);
-        if(!checkWall(playerGroup.position.x + s.x, playerGroup.position.y + 1, playerGroup.position.z)) playerGroup.position.x += s.x;
-        if(!checkWall(playerGroup.position.x, playerGroup.position.y + 1, playerGroup.position.z + s.z)) playerGroup.position.z += s.z;
+        // NOCLIP ACTIF : On ne vérifie plus checkWall ici
+        playerGroup.position.x += s.x;
+        playerGroup.position.z += s.z;
     }
 
     vy += currentGravity * dt;
@@ -388,15 +383,19 @@ function loop() {
     for(let i=bullets.length-1; i>=0; i--) {
         const b = bullets[i]; b.mesh.position.addScaledVector(b.dir, b.speed * dt);
         if(checkWall(b.mesh.position.x, b.mesh.position.y, b.mesh.position.z) || b.mesh.position.y < -50) { scene.remove(b.mesh); bullets.splice(i,1); continue; }
+        
+        // CORRECTION HITBOX : playerGroup.position + 1.4 au lieu de 1.0 pour être au centre du buste
+        const playerHitPos = playerGroup.position.clone().add(new THREE.Vector3(0, 1.4, 0));
+
         if(b.o === myID) {
             bots.forEach((bot, idx) => {
-                if(b.mesh.position.distanceTo(bot.mesh.position.clone().add(new THREE.Vector3(0,1,0))) < 2) {
+                if(b.mesh.position.distanceTo(bot.mesh.position.clone().add(new THREE.Vector3(0,1.2,0))) < 2) {
                     bot.hp -= b.dmg; triggerHitMarker(); scene.remove(b.mesh); bullets.splice(i,1);
                     bot.mesh.healthBar.scale.x = Math.max(0, bot.hp/bot.maxHp);
                     if(bot.hp <= 0) { addKillFeed("Toi", "Bot"); scene.remove(bot.mesh); bots.splice(idx,1); setTimeout(spawnBot, 4000); }
                 }
             });
-        } else if(b.mesh.position.distanceTo(playerGroup.position.clone().add(new THREE.Vector3(0,1,0))) < 2.2) {
+        } else if(b.mesh.position.distanceTo(playerHitPos) < 2.2) {
             takeDamage(b.dmg, b.o); scene.remove(b.mesh); bullets.splice(i,1);
         }
     }
