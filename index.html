@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Strike - Metropolis Tactics</title>
+    <title>Neon Strike - Chromatica City</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
@@ -25,7 +25,6 @@
         @keyframes blink { 50% { opacity: 0; } }
         #kill-feed { position: absolute; top: 150px; right: 20px; text-align: right; font-size: 14px; font-weight: bold; font-family: monospace; z-index: 10; }
         .kill-item { background: rgba(0,0,0,0.7); color: #fff; padding: 5px 10px; margin-bottom: 2px; border-right: 3px solid #00d4ff; animation: fadeout 4s forwards; }
-        @keyframes fadeout { 0% { opacity:1; transform:translateX(20px); } 10% { transform:translateX(0); } 80% { opacity:1; } 100% { opacity:0; display:none; } }
         #login { position: fixed; inset: 0; background: #000; display: flex; align-items: center; justify-content: center; z-index: 100; background: radial-gradient(circle at center, #112 0%, #000 100%); }
         .box { background: rgba(20,20,30,0.9); padding: 50px; border: 1px solid #00d4ff; text-align: center; border-radius: 5px; box-shadow: 0 0 50px rgba(0, 212, 255, 0.2); }
         button { padding: 15px 40px; background: linear-gradient(45deg, #00d4ff, #0088aa); border: none; font-weight: 900; letter-spacing: 2px; cursor: pointer; color: #000; transition: transform 0.1s; margin: 10px; }
@@ -56,7 +55,7 @@
 </head>
 <body>
 
-<div id="login"><div class="box"><h1>Neon <span style="color:#00d4ff">Strike</span></h1><p style="color:#888; margin-bottom:20px;">Metropolis Tactics Update</p><button id="btn-conn" onclick="connectToCloud()">Déploiement</button></div></div>
+<div id="login"><div class="box"><h1>Neon <span style="color:#00d4ff">Strike</span></h1><p style="color:#888; margin-bottom:20px;">Chromatica City Update</p><button id="btn-conn" onclick="connectToCloud()">Déploiement</button></div></div>
 <div id="pause-menu"><div class="menu-box"><h2>Pause</h2><button class="menu-btn" onclick="togglePause()">Reprendre</button><button class="menu-btn" onclick="alert('Z/Q/S/D: Bouger\nEspace: Sauter\nShift: Dash\n@: Console Admin')">Commandes</button><button class="menu-btn red" onclick="location.reload()">Quitter</button></div></div>
 <div id="ui"><div class="hud-panel"><div style="font-size:24px; font-weight:bold;">Score: <span id="score">0</span></div></div><br><div class="hud-panel"><div>Santé</div><div id="health-bar-bg"><div id="health-bar"></div></div></div></div>
 <div id="leaderboard"><h3>Classement</h3><div id="leaderboard-list"></div></div>
@@ -134,23 +133,23 @@ function playSound(type, vol=0.1) {
 
 function initGame() {
     scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x02050a, 0.0035);
+    scene.fog = new THREE.FogExp2(0x0a0b10, 0.003);
     camera = new THREE.PerspectiveCamera(80, window.innerWidth/window.innerHeight, 0.1, 3000);
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setClearColor(0x010205);
+    renderer.setClearColor(0x050508);
     document.body.appendChild(renderer.domElement);
     
-    scene.add(new THREE.AmbientLight(0xffffff, 0.3));
-    const sun = new THREE.DirectionalLight(0x00d4ff, 0.5); sun.position.set(100, 200, 100); scene.add(sun);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+    const sun = new THREE.DirectionalLight(0xffffff, 0.8); sun.position.set(50, 200, 50); scene.add(sun);
     
-    buildCyberCity();
+    buildDiverseCity();
     playerGroup = createPlayerMesh(0x00d4ff, false); 
     playerGroup.position.set(0, 5, 0); 
     scene.add(playerGroup);
     
-    for(let i=0; i<8; i++) spawnBot();
+    for(let i=0; i<6; i++) spawnBot();
     switchWeapon(0); 
     setupInputs();
 
@@ -160,166 +159,152 @@ function initGame() {
     loop();
 }
 
-// --- FONCTIONS ARCHITECTURALES ---
-function createBuilding(x, z, w, d, floors) {
-    const floorH = 12;
-    for(let f=0; f<floors; f++) {
-        let y = f * floorH;
-        // Sol de l'étage
-        createWall(x, y, z, w, d, 1, 0x1a1a2e);
-        // Murs extérieurs avec ouvertures (portes/fenêtres)
-        createWall(x - w/2, y, z + d/4, 1, d/2, floorH, 0x0a0a15); // Mur Gauche
-        createWall(x - w/2, y, z - d/4, 1, d/2, floorH, 0x0a0a15);
-        createWall(x + w/2, y, z, 1, d, floorH, 0x0a0a15); // Mur Droit
-        createWall(x, y, z - d/2, w, 1, floorH, 0x0a0a15); // Mur Fond
-        createWall(x - w/4, y, z + d/2, w/2, 1, floorH, 0x0a0a15); // Mur Devant avec porte
-        
-        // Escalier (Rampe) vers l'étage suivant
-        if(f < floors - 1) {
-            createRamp(x + w/2 - 4, y, z - d/2 + 4, 4, 12, 12, Math.PI);
-        }
+// --- FONCTIONS ARCHITECTURALES AVANCÉES ---
+
+function createSpiralStair(x, y, z, radius, totalHeight, color) {
+    const stepsCount = 18;
+    const stepH = totalHeight / stepsCount;
+    for(let i=0; i < stepsCount; i++) {
+        let angle = (i / stepsCount) * Math.PI * 1.5;
+        let sx = x + Math.cos(angle) * radius;
+        let sz = z + Math.sin(angle) * radius;
+        createWall(sx, y + (i * stepH), sz, 5, 5, 0.8, color);
     }
-    // Toit
-    createWall(x, floors * floorH, z, w + 2, d + 2, 1, 0x00d4ff);
 }
 
-function createRamp(x, y, z, w, d, h, rotation = 0) {
-    const g = new THREE.BoxGeometry(w, Math.sqrt(d*d + h*h), 0.5);
-    const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: 0x222233 }));
-    m.position.set(x, y + h/2, z);
-    m.rotation.x = Math.atan2(h, d);
-    m.rotation.y = rotation;
-    scene.add(m);
-    // Collision simplifiée : on ajoute plusieurs boites pour simuler la pente
-    for(let i=0; i<10; i++) {
-        let stepH = (h/10);
-        createWall(x, y + (i*stepH), z + (i*d/10) - d/2, w, d/10, stepH, 0x000000);
+function createDetailedBuilding(x, z, w, d, floors, baseColor) {
+    const floorH = 14;
+    for(let f=0; f<floors; f++) {
+        let y = f * floorH;
+        // Sol
+        createWall(x, y, z, w, d, 0.5, 0x333333);
+        // Murs extérieurs avec fenêtres (couleur différente)
+        createWall(x - w/2, y, z, 1, d, floorH, baseColor); // Gauche
+        createWall(x + w/2, y, z, 1, d, floorH, baseColor); // Droite
+        createWall(x, y, z - d/2, w, 1, floorH, baseColor); // Fond
+        // Façade avec porte
+        createWall(x - w/3, y, z + d/2, w/3, 1, floorH, baseColor);
+        createWall(x + w/3, y, z + d/2, w/3, 1, floorH, baseColor);
+        
+        // Cloisons internes (Pièces)
+        createWall(x, y, z, 1, d, floorH, baseColor); // Division centrale
+        createWall(x + w/4, y, z, w/2, 1, floorH, baseColor); // Division transversale
+        
+        // Escaliers en colimaçon à chaque étage impair
+        if(f < floors - 1) {
+            createSpiralStair(x - w/4, y, z - d/4, 6, floorH, 0x555555);
+        }
     }
+    // Toit coloré
+    createWall(x, floors * floorH, z, w + 2, d + 2, 1, baseColor);
+}
+
+function createCyberTree(x, z) {
+    const trunk = new THREE.Mesh(new THREE.BoxGeometry(2, 10, 2), new THREE.MeshStandardMaterial({color: 0x442211}));
+    trunk.position.set(x, 5, z); scene.add(trunk);
+    const leaves = new THREE.Mesh(new THREE.BoxGeometry(8, 8, 8), new THREE.MeshStandardMaterial({color: 0x00ff66, emissive: 0x00ff66, emissiveIntensity: 0.2}));
+    leaves.position.set(x, 12, z); scene.add(leaves);
+}
+
+function buildDiverseCity() {
+    // Sol de base coloré par zones
+    createWall(0, -1, 0, 2000, 2000, 1, 0x111115);
+    
+    // ZONE CENTRALE (Bleue/Néon)
+    createDetailedBuilding(0, -100, 50, 50, 3, 0x0055ff);
+    createDetailedBuilding(80, -100, 40, 40, 2, 0x00aaff);
+    
+    // ZONE INDUSTRIELLE (Orange/Rouille)
+    createDetailedBuilding(-120, 50, 60, 40, 2, 0xaa5500);
+    createWall(-120, 0, 120, 20, 20, 40, 0x884400); // Grande Cheminée
+    
+    // ZONE RÉSIDENTIELLE / PARC (Verte)
+    createDetailedBuilding(120, 50, 40, 40, 4, 0x228822);
+    for(let i=0; i<10; i++) {
+        createCyberTree(100 + Math.random()*100, 100 + Math.random()*100);
+    }
+
+    // PONTS LOGIQUES
+    createBridge(40, 28, -100, 60, 6, 0); // Entre building central et voisin
+    createBridge(-60, 14, 50, 80, 5, 0); // Vers zone industrielle
+
+    // TUNNEL ARC-EN-CIEL
+    for(let i=0; i<10; i++) {
+        let cz = -250 + (i*15);
+        let col = new THREE.Color().setHSL(i/10, 0.8, 0.5);
+        createWall(-50, 0, cz, 2, 10, 15, col);
+        createWall(50, 0, cz, 2, 10, 15, col);
+        createWall(0, 15, cz, 100, 10, 1, col);
+    }
+
+    // AJOUT DE COUVERTURES DIVERSIFIÉES
+    for(let i=0; i<20; i++) {
+        let x = (Math.random()-0.5)*500;
+        let z = (Math.random()-0.5)*500;
+        if(Math.abs(x)<40 && Math.abs(z)<40) x+=100;
+        let h = 4 + Math.random()*10;
+        createWall(x, 0, z, 6, 6, h, Math.random()*0xffffff);
+        if(Math.random()>0.8) createJumpPad(x, h, z);
+    }
+}
+
+function createWall(x, y, z, w, d, h, color) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ color: color })); 
+    m.position.set(x, y + h/2, z); scene.add(m);
+    walls.push({ minX: x-w/2, maxX: x+w/2, minZ: z-d/2, maxZ: z+d/2, minY: y, maxY: y+h });
+    wallMeshes.push(m);
 }
 
 function createBridge(x, y, z, w, d, rotation = 0) {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, 1, d), new THREE.MeshStandardMaterial({ color: 0x00ffcc, emissive: 0x00ffcc, emissiveIntensity: 0.5 }));
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, 1, d), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.2 }));
     m.position.set(x, y, z);
     m.rotation.y = rotation;
     scene.add(m);
     walls.push({ minX: x-w/2, maxX: x+w/2, minZ: z-d/2, maxZ: z+d/2, minY: y-0.5, maxY: y+0.5 });
 }
 
-function buildCyberCity() {
-    // Sol de base
-    const grid = new THREE.GridHelper(2000, 100, 0x00ffff, 0x011a22); 
-    scene.add(grid);
-    createWall(0, -1, 0, 2000, 2000, 1, 0x050a15);
-
-    // TUNNEL CENTRAL (Creusé virtuellement par deux grands murs et un plafond)
-    createWall(0, 0, 100, 200, 5, 15, 0x111122); // Mur tunnel 1
-    createWall(0, 0, 80, 200, 5, 15, 0x111122);  // Mur tunnel 2
-    createWall(0, 15, 90, 200, 25, 1, 0x00d4ff); // Toit tunnel / Route supérieure
-
-    // BÂTIMENTS À ENTRER
-    createBuilding(-60, -60, 30, 30, 3); // Immeuble A
-    createBuilding(60, -60, 30, 30, 4);  // Immeuble B
-    createBuilding(0, -120, 40, 40, 2);  // Entrepôt C
-
-    // PONTS ENTRE LES TOITS
-    createBridge(0, 36, -60, 90, 5); // Relie A et B au sommet
-    createBridge(60, 24, -90, 5, 60); // Pont vers l'entrepôt
-
-    // STRUCTURES DE DÉCOR ET COUVERTURE
-    for(let i=0; i<15; i++) {
-        let x = (Math.random()-0.5)*300;
-        let z = (Math.random()-0.5)*300;
-        if(Math.abs(x) < 30) x += 50; 
-        createWall(x, 0, z, 5, 5, 8, 0x333344); // Piliers/Caisses
-        if(Math.random() > 0.7) createJumpPad(x, 0, z+8);
-    }
-
-    // LIMITES DE LA MAP (Ville lointaine)
-    for(let i=0; i<30; i++) {
-        let ang = (i/30) * Math.PI * 2;
-        let dist = 400 + Math.random()*200;
-        let h = 100 + Math.random()*400;
-        const b = new THREE.Mesh(new THREE.BoxGeometry(40, h, 40), new THREE.MeshStandardMaterial({color:0x020205}));
-        b.position.set(Math.cos(ang)*dist, h/2, Math.sin(ang)*dist);
-        scene.add(b);
-    }
-}
-
-function createWall(x, y, z, w, d, h, color) {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ color: color, emissive: color, emissiveIntensity: 0.05 })); 
-    m.position.set(x, y + h/2, z); scene.add(m);
-    walls.push({ minX: x-w/2, maxX: x+w/2, minZ: z-d/2, maxZ: z+d/2, minY: y, maxY: y+h });
-    wallMeshes.push(m);
-}
-
 function createJumpPad(x, y, z) {
-    const m = new THREE.Mesh(new THREE.CylinderGeometry(4, 4, 0.6, 16), new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.6 }));
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(4, 4, 0.6, 16), new THREE.MeshBasicMaterial({ color: 0xffff00 }));
     m.position.set(x, y + 0.3, z);
     scene.add(m);
     jumpPads.push({ x, z, y, radius: 5 });
 }
 
-function createExplosive(x, y, z) {
-    const m = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 3, 12), new THREE.MeshStandardMaterial({ color: 0xff0033, emissive: 0xaa0000, emissiveIntensity: 1 }));
-    m.position.set(x, y + 1.5, z);
-    scene.add(m);
-    explosives.push({ mesh: m, x, y: y+1.5, z });
-}
-
 function createPlayerMesh(col, withHB = true) {
     const g = new THREE.Group();
-    const mat = new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.7 });
-    const body = new THREE.Mesh(new THREE.BoxGeometry(1, 1.5, 0.6), mat); body.position.y = 0.75;
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), mat); head.position.y = 1.8;
+    const mat = new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.5 });
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.8, 0.8), mat); body.position.y = 0.9;
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 0.7), mat); head.position.y = 2.1;
     g.add(body, head);
     if(withHB) {
         const hb = new THREE.Group();
-        const f = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 0.2), new THREE.MeshBasicMaterial({ color: 0x00ff00 }));
-        hb.add(f); hb.position.y = 2.6; g.add(hb); g.healthBar = f; g.healthBarGroup = hb;
+        const f = new THREE.Mesh(new THREE.PlaneGeometry(2, 0.2), new THREE.MeshBasicMaterial({ color: 0x00ff00 }));
+        hb.add(f); hb.position.y = 3; g.add(hb); g.healthBar = f; g.healthBarGroup = hb;
     }
     return g;
-}
-
-function triggerExplosion(x, y, z) {
-    playSound('boom', 0.7);
-    triggerVisualExplosion(x, y, z);
-    if(channel) channel.publish('p', { t:'e', x, y, z });
-    const pDist = playerGroup.position.distanceTo(new THREE.Vector3(x,y,z));
-    if(pDist < 18) { takeDamage((1 - pDist/18)*150, "Blast"); vy += 45; }
-    bots.forEach((b, i) => {
-        const d = b.mesh.position.distanceTo(new THREE.Vector3(x,y,z));
-        if(d < 18) { b.hp -= (1 - d/18)*150; if(b.hp <= 0) { scene.remove(b.mesh); bots.splice(i,1); setTimeout(spawnBot, 3000); } }
-    });
-}
-
-function triggerVisualExplosion(x, y, z) {
-    const boom = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 16), new THREE.MeshBasicMaterial({ color: 0xff6600, transparent:true, opacity:0.8 }));
-    boom.position.set(x, y, z); scene.add(boom);
-    let s = 1;
-    const itv = setInterval(() => { s += 2; boom.scale.set(s,s,s); boom.material.opacity -= 0.1; if(s > 20) { scene.remove(boom); clearInterval(itv); } }, 20);
 }
 
 function spawnBot(isAlly = false) {
     const bot = { 
         id: "Bot-" + Math.floor(Math.random()*9999), 
-        mesh: createPlayerMesh(isAlly?0x00aaff:0xffcc00), 
+        mesh: createPlayerMesh(isAlly?0x00ffff:0xff5500), 
         hp: 100, maxHp: 100, vy: 0, lastShoot: 0, isAlly,
         dir: new THREE.Vector3(Math.random()-0.5, 0, Math.random()-0.5).normalize()
     };
-    bot.mesh.position.set((Math.random()-0.5)*200, 40, (Math.random()-0.5)*200);
+    bot.mesh.position.set((Math.random()-0.5)*200, 10, (Math.random()-0.5)*200);
     scene.add(bot.mesh); bots.push(bot);
 }
 
 function invokeBot() { if(score>=500 || adminMode) { if(!adminMode) score-=500; spawnBot(true); playSound('laser', 0.5); } }
 
 function checkWall(x, y, z) {
-    for(let w of walls) if(x>w.minX-0.5 && x<w.maxX+0.5 && z>w.minZ-0.5 && z<w.maxZ+0.5 && y>w.minY && y<w.maxY) return true;
+    for(let w of walls) if(x>w.minX-0.6 && x<w.maxX+0.6 && z>w.minZ-0.6 && z<w.maxZ+0.6 && y>w.minY-0.1 && y<w.maxY) return true;
     return false;
 }
 
 function getFloorY(x, z, currentY) {
     let floor = 0;
-    for(let w of walls) if(x>w.minX-0.5 && x<w.maxX+0.5 && z>w.minZ-0.5 && z<w.maxZ+0.5 && currentY >= w.maxY-1) floor = Math.max(floor, w.maxY);
+    for(let w of walls) if(x>w.minX-0.6 && x<w.maxX+0.6 && z>w.minZ-0.6 && z<w.maxZ+0.6 && currentY >= w.maxY-1.5) floor = Math.max(floor, w.maxY);
     return floor;
 }
 
@@ -360,17 +345,16 @@ function loop() {
         let bg = getFloorY(b.mesh.position.x, b.mesh.position.z, b.mesh.position.y);
         if(b.mesh.position.y <= bg) { b.mesh.position.y = bg; b.vy = 0; }
         b.mesh.healthBarGroup.lookAt(camera.position);
-        
         const dist = b.mesh.position.distanceTo(playerGroup.position);
         if(!b.isAlly && dist < 60 && !isInvisible) {
             b.mesh.lookAt(playerGroup.position.x, b.mesh.position.y, playerGroup.position.z);
-            if(now - b.lastShoot > 1500) {
+            if(now - b.lastShoot > 1200) {
                 b.lastShoot = now;
                 const dir = playerGroup.position.clone().add(new THREE.Vector3(0,1.5,0)).sub(b.mesh.position.clone().add(new THREE.Vector3(0,1.5,0))).normalize();
-                createBullet({ t:'f', o:b.id, x:b.mesh.position.x, y:b.mesh.position.y+1.5, z:b.mesh.position.z, dx:dir.x, dy:dir.y, dz:dir.z, spd:130, dmg:10, col:0xffcc00, sz:1 });
+                createBullet({ t:'f', o:b.id, x:b.mesh.position.x, y:b.mesh.position.y+1.5, z:b.mesh.position.z, dx:dir.x, dy:dir.y, dz:dir.z, spd:130, dmg:8, col:0xffaa00, sz:1 });
             }
         } else {
-            b.mesh.position.addScaledVector(b.dir, 10*dt);
+            b.mesh.position.addScaledVector(b.dir, 12*dt);
             if(checkWall(b.mesh.position.x+b.dir.x, b.mesh.position.y+1, b.mesh.position.z+b.dir.z)) b.dir.set(Math.random()-0.5, 0, Math.random()-0.5).normalize();
         }
     });
@@ -378,10 +362,9 @@ function loop() {
     for(let i=bullets.length-1; i>=0; i--) {
         const b = bullets[i]; b.mesh.position.addScaledVector(b.dir, b.speed*dt);
         if(checkWall(b.mesh.position.x, b.mesh.position.y, b.mesh.position.z)) { scene.remove(b.mesh); bullets.splice(i,1); continue; }
-        
         if(b.o === myID) {
             bots.forEach((bot, bi) => {
-                if(!bot.isAlly && b.mesh.position.distanceTo(bot.mesh.position.clone().add(new THREE.Vector3(0,1.2,0))) < 2.2) {
+                if(!bot.isAlly && b.mesh.position.distanceTo(bot.mesh.position.clone().add(new THREE.Vector3(0,1.2,0))) < 2.5) {
                     bot.hp -= b.dmg; triggerHitMarker(); scene.remove(b.mesh); bullets.splice(i,1);
                     bot.mesh.healthBar.scale.x = Math.max(0, bot.hp/100);
                     if(bot.hp <= 0) { scene.remove(bot.mesh); bots.splice(bi,1); score += 100; addKillFeed("Toi", "Bot"); setTimeout(spawnBot, 3000); }
@@ -400,8 +383,8 @@ function loop() {
     }
 
     let cp = isSniper ? pitch : 0;
-    camera.position.lerp(new THREE.Vector3(playerGroup.position.x - Math.sin(yaw)*14, playerGroup.position.y + (isSniper?1.8:9), playerGroup.position.z - Math.cos(yaw)*14), 0.2);
-    camera.lookAt(playerGroup.position.x + Math.sin(yaw)*Math.cos(cp), playerGroup.position.y + (isSniper?1.8:5) + Math.sin(cp), playerGroup.position.z + Math.cos(yaw)*Math.cos(cp));
+    camera.position.lerp(new THREE.Vector3(playerGroup.position.x - Math.sin(yaw)*15, playerGroup.position.y + (isSniper?1.8:10), playerGroup.position.z - Math.cos(yaw)*15), 0.2);
+    camera.lookAt(playerGroup.position.x + Math.sin(yaw)*Math.cos(cp), playerGroup.position.y + (isSniper?1.8:6) + Math.sin(cp), playerGroup.position.z + Math.cos(yaw)*Math.cos(cp));
     renderer.render(scene, camera);
 }
 
@@ -412,7 +395,6 @@ function shoot() {
     if(!adminMode) w.ammo--; 
     lastShoot = Date.now(); playSound('shoot', 0.2);
     document.getElementById('ammo-val').textContent = adminMode ? "∞" : w.ammo;
-    
     let cp = isSniper ? pitch : 0;
     for(let i=0; i<w.count; i++) {
         let sp = (Math.random()-0.5) * w.spread;
@@ -444,14 +426,9 @@ function stopFire() { isFiring = false; }
 
 function handleAdmin(cmd) {
     const p = cmd.toLowerCase().split(' ');
-    if(p[0]==='help') alert("aimbot, invisible, god, speed [n], score [n], infinity jumps, no delay, spawn [n]");
     if(p[0]==='aimbot') isAimbot = !isAimbot;
-    if(p[0]==='invisible') isInvisible = !isInvisible;
     if(p[0]==='god') adminMode = !adminMode;
     if(p[0]==='speed') playerSpeedBase = parseInt(p[1]) || 32;
-    if(p[0]==='score') score = (p[1]==='infinity') ? Infinity : parseInt(p[1]);
-    if(p[0]==='infinity') infinityJumps = true;
-    if(p[0]==='no') noDelay = true;
     if(p[0]==='spawn') { for(let i=0; i<(parseInt(p[1])||1); i++) spawnBot(); }
 }
 
