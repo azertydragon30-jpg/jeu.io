@@ -3,6 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="icon" href="data:,"> <!-- Évite l'erreur favicon 404 -->
     <title>Neon Strike - Chromatica City</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
@@ -55,11 +56,11 @@
 </head>
 <body>
 
-<div id="login"><div class="box"><h1>Neon <span style="color:#00d4ff">Strike</span></h1><p style="color:#888; margin-bottom:20px;">Chromatica City Update</p><button id="btn-conn" onclick="connectToCloud()">Déploiement</button></div></div>
-<div id="pause-menu"><div class="menu-box"><h2>Pause</h2><button class="menu-btn" onclick="togglePause()">Reprendre</button><button class="menu-btn" onclick="alert('Z/Q/S/D: Bouger\nEspace: Sauter\nShift: Dash\n@: Console Admin')">Commandes</button><button class="menu-btn red" onclick="location.reload()">Quitter</button></div></div>
+<div id="login"><div class="box"><h1>Neon <span style="color:#00d4ff">Strike</span></h1><p style="color:#888; margin-bottom:20px;">Chromatica City Update v2.1</p><button id="btn-conn" onclick="connectToCloud()">Déploiement</button></div></div>
+<div id="pause-menu"><div class="menu-box"><h2>Pause</h2><button class="menu-btn" onclick="togglePause()">Reprendre</button><button class="menu-btn" onclick="alert('Z/Q/S/D: Bouger\nEspace: Sauter\nShift: Dash\n1-5: Armes\n@: Console Admin')">Commandes</button><button class="menu-btn red" onclick="location.reload()">Quitter</button></div></div>
 <div id="ui"><div class="hud-panel"><div style="font-size:24px; font-weight:bold;">Score: <span id="score">0</span></div></div><br><div class="hud-panel"><div>Santé</div><div id="health-bar-bg"><div id="health-bar"></div></div></div></div>
 <div id="leaderboard"><h3>Classement</h3><div id="leaderboard-list"></div></div>
-<div id="ammo-box"><div id="weapon-info">Mitraillette</div><span id="ammo-val">--</span> / <span id="ammo-max">--</span></div><div id="reload-msg">Rechargement...</div><div id="kill-feed"></div><div id="crosshair"></div><div id="sniper-scope"></div><div id="hit-marker"></div>
+<div id="ammo-box"><div id="weapon-info">--</div><span id="ammo-val">--</span> / <span id="ammo-max">--</span></div><div id="reload-msg">Rechargement...</div><div id="kill-feed"></div><div id="crosshair"></div><div id="sniper-scope"></div><div id="hit-marker"></div>
 <div id="admin-console"><input type="text" id="admin-input" placeholder="Commande (help)..."></div>
 <div id="mobile-controls"><div id="stick-container" class="touch-zone"><div id="stick"></div></div><div id="look-zone"></div><div id="btn-fire" class="mob-btn">🔥</div><div id="btn-jump" class="mob-btn">⬆️</div><div id="btn-dash" class="mob-btn">⚡</div><div id="btn-scope" class="mob-btn">🎯</div><div id="btn-swap" class="mob-btn">Swap</div><div id="btn-menu" class="mob-btn" onclick="togglePause()">Menu</div></div>
 <div id="btn-invoke" class="mob-btn" onclick="invokeBot()" style="display:none;">🤖<div id="invoke-label">500 Pts</div></div>
@@ -113,7 +114,6 @@ function handleMessage(m) {
     else if (d.t === 'f') { createBullet(d); playSound('laser', 0.2); }
     else if (d.t === 'h' && d.tgt === myID) { takeDamage(d.dmg, d.o); playSound('hit', 0.5); }
     else if (d.t === 'k') addKillFeed(d.killer, d.victim);
-    else if (d.t === 'e') triggerVisualExplosion(d.x, d.y, d.z);
 }
 
 function initAudio() { 
@@ -127,7 +127,7 @@ function playSound(type, vol=0.1) {
     osc.connect(gain); gain.connect(audioCtx.destination);
     if(type==='shoot') { osc.type='square'; osc.frequency.setValueAtTime(160, audioCtx.currentTime); gain.gain.setValueAtTime(vol, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime+0.1); osc.start(); osc.stop(audioCtx.currentTime+0.1); }
     else if(type==='jump') { osc.type='sine'; osc.frequency.setValueAtTime(220, audioCtx.currentTime); osc.frequency.linearRampToValueAtTime(450, audioCtx.currentTime+0.1); gain.gain.setValueAtTime(vol, audioCtx.currentTime); osc.start(); osc.stop(audioCtx.currentTime+0.2); }
-    else if(type==='boom') { osc.type='sawtooth'; osc.frequency.setValueAtTime(50, audioCtx.currentTime); gain.gain.setValueAtTime(vol, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime+0.6); osc.start(); osc.stop(audioCtx.currentTime+0.6); }
+    else if(type==='hit') { osc.type='sawtooth'; osc.frequency.setValueAtTime(80, audioCtx.currentTime); gain.gain.setValueAtTime(vol, audioCtx.currentTime); osc.start(); osc.stop(audioCtx.currentTime+0.1); }
     else { osc.type='sine'; osc.frequency.setValueAtTime(440, audioCtx.currentTime); gain.gain.setValueAtTime(0.01, audioCtx.currentTime); osc.start(); osc.stop(audioCtx.currentTime+0.01); }
 }
 
@@ -159,7 +159,7 @@ function initGame() {
     loop();
 }
 
-// --- FONCTIONS ARCHITECTURALES AVANCÉES ---
+// --- ARCHITECTURE ---
 
 function createSpiralStair(x, y, z, radius, totalHeight, color) {
     const stepsCount = 18;
@@ -176,26 +176,16 @@ function createDetailedBuilding(x, z, w, d, floors, baseColor) {
     const floorH = 14;
     for(let f=0; f<floors; f++) {
         let y = f * floorH;
-        // Sol
         createWall(x, y, z, w, d, 0.5, 0x333333);
-        // Murs extérieurs avec fenêtres (couleur différente)
-        createWall(x - w/2, y, z, 1, d, floorH, baseColor); // Gauche
-        createWall(x + w/2, y, z, 1, d, floorH, baseColor); // Droite
-        createWall(x, y, z - d/2, w, 1, floorH, baseColor); // Fond
-        // Façade avec porte
+        createWall(x - w/2, y, z, 1, d, floorH, baseColor);
+        createWall(x + w/2, y, z, 1, d, floorH, baseColor);
+        createWall(x, y, z - d/2, w, 1, floorH, baseColor);
         createWall(x - w/3, y, z + d/2, w/3, 1, floorH, baseColor);
         createWall(x + w/3, y, z + d/2, w/3, 1, floorH, baseColor);
-        
-        // Cloisons internes (Pièces)
-        createWall(x, y, z, 1, d, floorH, baseColor); // Division centrale
-        createWall(x + w/4, y, z, w/2, 1, floorH, baseColor); // Division transversale
-        
-        // Escaliers en colimaçon à chaque étage impair
-        if(f < floors - 1) {
-            createSpiralStair(x - w/4, y, z - d/4, 6, floorH, 0x555555);
-        }
+        createWall(x, y, z, 1, d, floorH, baseColor); 
+        createWall(x + w/4, y, z, w/2, 1, floorH, baseColor); 
+        if(f < floors - 1) createSpiralStair(x - w/4, y, z - d/4, 6, floorH, 0x555555);
     }
-    // Toit coloré
     createWall(x, floors * floorH, z, w + 2, d + 2, 1, baseColor);
 }
 
@@ -207,28 +197,14 @@ function createCyberTree(x, z) {
 }
 
 function buildDiverseCity() {
-    // Sol de base coloré par zones
     createWall(0, -1, 0, 2000, 2000, 1, 0x111115);
-    
-    // ZONE CENTRALE (Bleue/Néon)
     createDetailedBuilding(0, -100, 50, 50, 3, 0x0055ff);
     createDetailedBuilding(80, -100, 40, 40, 2, 0x00aaff);
-    
-    // ZONE INDUSTRIELLE (Orange/Rouille)
     createDetailedBuilding(-120, 50, 60, 40, 2, 0xaa5500);
-    createWall(-120, 0, 120, 20, 20, 40, 0x884400); // Grande Cheminée
-    
-    // ZONE RÉSIDENTIELLE / PARC (Verte)
     createDetailedBuilding(120, 50, 40, 40, 4, 0x228822);
-    for(let i=0; i<10; i++) {
-        createCyberTree(100 + Math.random()*100, 100 + Math.random()*100);
-    }
-
-    // PONTS LOGIQUES
-    createBridge(40, 28, -100, 60, 6, 0); // Entre building central et voisin
-    createBridge(-60, 14, 50, 80, 5, 0); // Vers zone industrielle
-
-    // TUNNEL ARC-EN-CIEL
+    for(let i=0; i<10; i++) createCyberTree(100 + Math.random()*100, 100 + Math.random()*100);
+    createBridge(40, 28, -100, 60, 6, 0);
+    createBridge(-60, 14, 50, 80, 5, 0);
     for(let i=0; i<10; i++) {
         let cz = -250 + (i*15);
         let col = new THREE.Color().setHSL(i/10, 0.8, 0.5);
@@ -236,8 +212,6 @@ function buildDiverseCity() {
         createWall(50, 0, cz, 2, 10, 15, col);
         createWall(0, 15, cz, 100, 10, 1, col);
     }
-
-    // AJOUT DE COUVERTURES DIVERSIFIÉES
     for(let i=0; i<20; i++) {
         let x = (Math.random()-0.5)*500;
         let z = (Math.random()-0.5)*500;
@@ -252,7 +226,6 @@ function createWall(x, y, z, w, d, h, color) {
     const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ color: color })); 
     m.position.set(x, y + h/2, z); scene.add(m);
     walls.push({ minX: x-w/2, maxX: x+w/2, minZ: z-d/2, maxZ: z+d/2, minY: y, maxY: y+h });
-    wallMeshes.push(m);
 }
 
 function createBridge(x, y, z, w, d, rotation = 0) {
@@ -390,7 +363,7 @@ function loop() {
 
 function shoot() {
     const w = WEAPONS[currentWeaponIdx];
-    if(isReloading || (Date.now()-lastShoot < (noDelay?50:w.rate))) return;
+    if(!w || isReloading || (Date.now()-lastShoot < (noDelay?50:w.rate))) return;
     if(!adminMode && w.ammo <= 0) { reload(); return; }
     if(!adminMode) w.ammo--; 
     lastShoot = Date.now(); playSound('shoot', 0.2);
@@ -417,7 +390,19 @@ function dash() { if(Date.now()-lastDash > 1200) { lastDash=Date.now(); dashPowe
 function toggleScope() { if(currentWeaponIdx===3){ isSniper=!isSniper; camera.fov=isSniper?12:80; camera.updateProjectionMatrix(); document.getElementById('sniper-scope').style.display=isSniper?'block':'none'; playerGroup.visible=!isSniper; } }
 function triggerHitMarker() { const hm=document.getElementById('hit-marker'); hm.style.opacity=1; setTimeout(()=>hm.style.opacity=0, 80); }
 function addKillFeed(k,v) { const d=document.createElement('div'); d.className='kill-item'; d.innerHTML=`${k} ➔ ${v}`; document.getElementById('kill-feed').prepend(d); }
-function switchWeapon(i) { currentWeaponIdx=i; const w=WEAPONS[i]; document.getElementById('weapon-info').textContent=w.name; document.getElementById('ammo-val').textContent=w.ammo; document.getElementById('ammo-max').textContent=w.maxAmmo; isSniper=false; camera.fov=80; camera.updateProjectionMatrix(); document.getElementById('sniper-scope').style.display='none'; playerGroup.visible=true; }
+
+function switchWeapon(i) { 
+    if (i < 0 || i >= WEAPONS.length) return; 
+    currentWeaponIdx = i; 
+    const w = WEAPONS[i]; 
+    document.getElementById('weapon-info').textContent = w.name; 
+    document.getElementById('ammo-val').textContent = w.ammo; 
+    document.getElementById('ammo-max').textContent = w.maxAmmo; 
+    isSniper = false; camera.fov = 80; camera.updateProjectionMatrix(); 
+    document.getElementById('sniper-scope').style.display = 'none'; 
+    playerGroup.visible = true; 
+}
+
 function togglePause() { isPaused=!isPaused; document.getElementById('pause-menu').style.display=isPaused?'flex':'none'; if(!isPaused && !isMobile) renderer.domElement.requestPointerLock(); else document.exitPointerLock(); }
 function updateLeaderboard() { let p = [{id:"Toi", s:score, me:true}]; for(let id in otherPlayers) p.push({id, s:otherPlayers[id].score, me:false}); p.sort((a,b)=>b.s-a.s); document.getElementById('leaderboard-list').innerHTML = p.slice(0,5).map(x=>`<div class="leader-item ${x.me?'is-me':''}"><span>${x.id}</span><span>${x.s}</span></div>`).join(''); }
 function updateRemote(d) { if(!otherPlayers[d.o]){ otherPlayers[d.o]={mesh:createPlayerMesh(0xff0055), score:0}; scene.add(otherPlayers[d.o].mesh); } otherPlayers[d.o].mesh.position.lerp(new THREE.Vector3(d.x,d.y,d.z), 0.2); otherPlayers[d.o].mesh.rotation.y = d.ry; otherPlayers[d.o].score = d.score; otherPlayers[d.o].mesh.healthBar.scale.x = d.hp/100; otherPlayers[d.o].mesh.healthBarGroup.lookAt(camera.position); }
@@ -440,7 +425,10 @@ function setupInputs() {
         if(isPaused) return;
         keysDown[e.code]=true;
         if(e.code==='Space') jump(); if(e.code==='KeyR') reload(); if(e.code==='ShiftLeft') dash();
-        if(e.code.startsWith('Digit')) switchWeapon(parseInt(e.code.slice(-1))-1);
+        if(e.code.startsWith('Digit')) {
+            const num = parseInt(e.code.slice(-1));
+            if(num >= 1 && num <= 5) switchWeapon(num - 1);
+        }
     };
     window.onkeyup=e=>keysDown[e.code]=false;
     document.onmousemove=e=>{ if(document.pointerLockElement && !isPaused){ yaw-=e.movementX*0.003; if(isSniper){ pitch-=e.movementY*0.003; pitch=Math.max(-1.5, Math.min(1.5, pitch)); } } };
