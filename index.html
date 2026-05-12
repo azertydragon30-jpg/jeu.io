@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Strike - Cyber City Update</title>
+    <title>Neon Strike - Metropolis Tactics</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
@@ -56,7 +56,7 @@
 </head>
 <body>
 
-<div id="login"><div class="box"><h1>Neon <span style="color:#00d4ff">Strike</span></h1><p style="color:#888; margin-bottom:20px;">Cyber City Update 2.0</p><button id="btn-conn" onclick="connectToCloud()">Déploiement</button></div></div>
+<div id="login"><div class="box"><h1>Neon <span style="color:#00d4ff">Strike</span></h1><p style="color:#888; margin-bottom:20px;">Metropolis Tactics Update</p><button id="btn-conn" onclick="connectToCloud()">Déploiement</button></div></div>
 <div id="pause-menu"><div class="menu-box"><h2>Pause</h2><button class="menu-btn" onclick="togglePause()">Reprendre</button><button class="menu-btn" onclick="alert('Z/Q/S/D: Bouger\nEspace: Sauter\nShift: Dash\n@: Console Admin')">Commandes</button><button class="menu-btn red" onclick="location.reload()">Quitter</button></div></div>
 <div id="ui"><div class="hud-panel"><div style="font-size:24px; font-weight:bold;">Score: <span id="score">0</span></div></div><br><div class="hud-panel"><div>Santé</div><div id="health-bar-bg"><div id="health-bar"></div></div></div></div>
 <div id="leaderboard"><h3>Classement</h3><div id="leaderboard-list"></div></div>
@@ -142,8 +142,8 @@ function initGame() {
     renderer.setClearColor(0x010205);
     document.body.appendChild(renderer.domElement);
     
-    scene.add(new THREE.AmbientLight(0xffffff, 0.4));
-    const l1 = new THREE.PointLight(0x00d4ff, 2, 300); l1.position.set(0, 100, 0); scene.add(l1);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.3));
+    const sun = new THREE.DirectionalLight(0x00d4ff, 0.5); sun.position.set(100, 200, 100); scene.add(sun);
     
     buildCyberCity();
     playerGroup = createPlayerMesh(0x00d4ff, false); 
@@ -160,80 +160,93 @@ function initGame() {
     loop();
 }
 
-function buildCyberCity() {
-    // Sol et grille
-    const grid = new THREE.GridHelper(3000, 120, 0x00ffff, 0x011a22); 
-    scene.add(grid);
-    createWall(0, -1, 0, 3000, 3000, 1, 0x050a15);
-
-    // STRUCTURE CENTRALE - LE CORE
-    const coreGroup = new THREE.Group();
-    createWall(0, 0, 0, 40, 40, 2, 0x222233); // Base core
-    
-    // Anneau rotatif
-    const ringGeo = new THREE.TorusGeometry(35, 3, 16, 64);
-    const ringMat = new THREE.MeshStandardMaterial({ color: 0x00d4ff, emissive: 0x00d4ff, emissiveIntensity: 1 });
-    const ring = new THREE.Mesh(ringGeo, ringMat);
-    ring.rotation.x = Math.PI/2;
-    ring.position.y = 15;
-    scene.add(ring);
-    this.centralRing = ring;
-
-    // PLATEFORMES MOBILES (Hexagones)
-    const platPos = [[60, 60], [-60, 60], [60, -60], [-60, -60]];
-    platPos.forEach((pos, i) => {
-        const geo = new THREE.CylinderGeometry(8, 8, 1.5, 6);
-        const mat = new THREE.MeshStandardMaterial({ color: 0xff00cc, emissive: 0xff00cc, emissiveIntensity: 0.5 });
-        const plat = new THREE.Mesh(geo, mat);
-        plat.position.set(pos[0], 5, pos[1]);
-        scene.add(plat);
-        movingPlatforms.push({ 
-            mesh: plat, 
-            baseY: 5, 
-            range: 30, 
-            speed: 1.5 + i*0.2, 
-            offset: i * Math.PI/2,
-            w: 16, d: 16
-        });
-    });
-
-    // GRAT-CIELS DE FOND (Non-collisibles)
-    for(let i=0; i<40; i++) {
-        let ang = Math.random() * Math.PI * 2;
-        let dist = 400 + Math.random() * 400;
-        let w = 20 + Math.random() * 40;
-        let h = 100 + Math.random() * 300;
-        const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, w), new THREE.MeshStandardMaterial({ color: 0x0a0a1a, emissive: 0x001133 }));
-        b.position.set(Math.cos(ang)*dist, h/2, Math.sin(ang)*dist);
-        scene.add(b);
-        // Fenêtres lumineuses
-        if(Math.random() > 0.5) {
-            const line = new THREE.Mesh(new THREE.BoxGeometry(2, h, 2), new THREE.MeshBasicMaterial({ color: Math.random() > 0.5 ? 0x00d4ff : 0xff00ff }));
-            line.position.copy(b.position); line.position.x += w/2 + 0.5;
-            scene.add(line);
+// --- FONCTIONS ARCHITECTURALES ---
+function createBuilding(x, z, w, d, floors) {
+    const floorH = 12;
+    for(let f=0; f<floors; f++) {
+        let y = f * floorH;
+        // Sol de l'étage
+        createWall(x, y, z, w, d, 1, 0x1a1a2e);
+        // Murs extérieurs avec ouvertures (portes/fenêtres)
+        createWall(x - w/2, y, z + d/4, 1, d/2, floorH, 0x0a0a15); // Mur Gauche
+        createWall(x - w/2, y, z - d/4, 1, d/2, floorH, 0x0a0a15);
+        createWall(x + w/2, y, z, 1, d, floorH, 0x0a0a15); // Mur Droit
+        createWall(x, y, z - d/2, w, 1, floorH, 0x0a0a15); // Mur Fond
+        createWall(x - w/4, y, z + d/2, w/2, 1, floorH, 0x0a0a15); // Mur Devant avec porte
+        
+        // Escalier (Rampe) vers l'étage suivant
+        if(f < floors - 1) {
+            createRamp(x + w/2 - 4, y, z - d/2 + 4, 4, 12, 12, Math.PI);
         }
     }
+    // Toit
+    createWall(x, floors * floorH, z, w + 2, d + 2, 1, 0x00d4ff);
+}
 
-    // NIDS DE SNIPER ET JUMP PADS
-    for(let i=0; i<8; i++) {
+function createRamp(x, y, z, w, d, h, rotation = 0) {
+    const g = new THREE.BoxGeometry(w, Math.sqrt(d*d + h*h), 0.5);
+    const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: 0x222233 }));
+    m.position.set(x, y + h/2, z);
+    m.rotation.x = Math.atan2(h, d);
+    m.rotation.y = rotation;
+    scene.add(m);
+    // Collision simplifiée : on ajoute plusieurs boites pour simuler la pente
+    for(let i=0; i<10; i++) {
+        let stepH = (h/10);
+        createWall(x, y + (i*stepH), z + (i*d/10) - d/2, w, d/10, stepH, 0x000000);
+    }
+}
+
+function createBridge(x, y, z, w, d, rotation = 0) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, 1, d), new THREE.MeshStandardMaterial({ color: 0x00ffcc, emissive: 0x00ffcc, emissiveIntensity: 0.5 }));
+    m.position.set(x, y, z);
+    m.rotation.y = rotation;
+    scene.add(m);
+    walls.push({ minX: x-w/2, maxX: x+w/2, minZ: z-d/2, maxZ: z+d/2, minY: y-0.5, maxY: y+0.5 });
+}
+
+function buildCyberCity() {
+    // Sol de base
+    const grid = new THREE.GridHelper(2000, 100, 0x00ffff, 0x011a22); 
+    scene.add(grid);
+    createWall(0, -1, 0, 2000, 2000, 1, 0x050a15);
+
+    // TUNNEL CENTRAL (Creusé virtuellement par deux grands murs et un plafond)
+    createWall(0, 0, 100, 200, 5, 15, 0x111122); // Mur tunnel 1
+    createWall(0, 0, 80, 200, 5, 15, 0x111122);  // Mur tunnel 2
+    createWall(0, 15, 90, 200, 25, 1, 0x00d4ff); // Toit tunnel / Route supérieure
+
+    // BÂTIMENTS À ENTRER
+    createBuilding(-60, -60, 30, 30, 3); // Immeuble A
+    createBuilding(60, -60, 30, 30, 4);  // Immeuble B
+    createBuilding(0, -120, 40, 40, 2);  // Entrepôt C
+
+    // PONTS ENTRE LES TOITS
+    createBridge(0, 36, -60, 90, 5); // Relie A et B au sommet
+    createBridge(60, 24, -90, 5, 60); // Pont vers l'entrepôt
+
+    // STRUCTURES DE DÉCOR ET COUVERTURE
+    for(let i=0; i<15; i++) {
         let x = (Math.random()-0.5)*300;
         let z = (Math.random()-0.5)*300;
-        if(Math.abs(x) < 50 && Math.abs(z) < 50) continue;
-        createWall(x, 0, z, 15, 15, 25, 0x111122);
-        createWall(x, 25, z, 18, 18, 1, 0x00ffcc);
-        createJumpPad(x + 10, 0, z + 10);
-        createExplosive(x, 26.5, z);
+        if(Math.abs(x) < 30) x += 50; 
+        createWall(x, 0, z, 5, 5, 8, 0x333344); // Piliers/Caisses
+        if(Math.random() > 0.7) createJumpPad(x, 0, z+8);
     }
 
-    // MURS DE LUMIÈRE (Limites)
-    for(let i=0; i<4; i++) {
-        const ang = (i * Math.PI) / 2;
-        createWall(Math.cos(ang)*500, 0, Math.sin(ang)*500, (i%2?1000:5), (i%2?5:1000), 100, 0x050510);
+    // LIMITES DE LA MAP (Ville lointaine)
+    for(let i=0; i<30; i++) {
+        let ang = (i/30) * Math.PI * 2;
+        let dist = 400 + Math.random()*200;
+        let h = 100 + Math.random()*400;
+        const b = new THREE.Mesh(new THREE.BoxGeometry(40, h, 40), new THREE.MeshStandardMaterial({color:0x020205}));
+        b.position.set(Math.cos(ang)*dist, h/2, Math.sin(ang)*dist);
+        scene.add(b);
     }
 }
 
 function createWall(x, y, z, w, d, h, color) {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ color: color, emissive: color, emissiveIntensity: 0.1 })); 
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ color: color, emissive: color, emissiveIntensity: 0.05 })); 
     m.position.set(x, y + h/2, z); scene.add(m);
     walls.push({ minX: x-w/2, maxX: x+w/2, minZ: z-d/2, maxZ: z+d/2, minY: y, maxY: y+h });
     wallMeshes.push(m);
@@ -293,7 +306,7 @@ function spawnBot(isAlly = false) {
         hp: 100, maxHp: 100, vy: 0, lastShoot: 0, isAlly,
         dir: new THREE.Vector3(Math.random()-0.5, 0, Math.random()-0.5).normalize()
     };
-    bot.mesh.position.set((Math.random()-0.5)*400, 10, (Math.random()-0.5)*400);
+    bot.mesh.position.set((Math.random()-0.5)*200, 40, (Math.random()-0.5)*200);
     scene.add(bot.mesh); bots.push(bot);
 }
 
@@ -307,11 +320,6 @@ function checkWall(x, y, z) {
 function getFloorY(x, z, currentY) {
     let floor = 0;
     for(let w of walls) if(x>w.minX-0.5 && x<w.maxX+0.5 && z>w.minZ-0.5 && z<w.maxZ+0.5 && currentY >= w.maxY-1) floor = Math.max(floor, w.maxY);
-    for(let p of movingPlatforms) {
-        if(x > p.mesh.position.x - p.w/2 && x < p.mesh.position.x + p.w/2 && z > p.mesh.position.z - p.d/2 && z < p.mesh.position.z + p.d/2) {
-            if(currentY >= p.mesh.position.y - 1) floor = Math.max(floor, p.mesh.position.y + 0.75);
-        }
-    }
     return floor;
 }
 
@@ -319,19 +327,6 @@ function loop() {
     requestAnimationFrame(loop);
     if(isPaused) return;
     const now = Date.now(), dt = 0.016;
-
-    if(this.centralRing) this.centralRing.rotation.z += 0.01;
-
-    movingPlatforms.forEach(p => {
-        const oldY = p.mesh.position.y;
-        p.mesh.position.y = p.baseY + Math.sin(now*0.001 * p.speed + p.offset) * p.range;
-        const deltaY = p.mesh.position.y - oldY;
-        // Si le joueur est sur la plateforme, il monte avec
-        const dXP = playerGroup.position.x - p.mesh.position.x, dZP = playerGroup.position.z - p.mesh.position.z;
-        if(Math.abs(dXP) < p.w/2 && Math.abs(dZP) < p.d/2 && Math.abs(playerGroup.position.y - (p.mesh.position.y+0.75)) < 1) {
-            playerGroup.position.y += deltaY;
-        }
-    });
 
     if(isFiring) shoot();
     let moveSpeed = playerSpeedBase + dashPower; dashPower *= 0.9;
@@ -384,12 +379,6 @@ function loop() {
         const b = bullets[i]; b.mesh.position.addScaledVector(b.dir, b.speed*dt);
         if(checkWall(b.mesh.position.x, b.mesh.position.y, b.mesh.position.z)) { scene.remove(b.mesh); bullets.splice(i,1); continue; }
         
-        explosives.forEach((ex, j) => {
-            if(b.mesh.position.distanceTo(ex.mesh.position) < 2.5) {
-                const e = explosives[j]; explosives.splice(j,1); scene.remove(e.mesh); triggerExplosion(e.x, e.y, e.z);
-            }
-        });
-
         if(b.o === myID) {
             bots.forEach((bot, bi) => {
                 if(!bot.isAlly && b.mesh.position.distanceTo(bot.mesh.position.clone().add(new THREE.Vector3(0,1.2,0))) < 2.2) {
@@ -439,7 +428,7 @@ function shoot() {
 }
 
 function reload() { if(isReloading) return; isReloading=true; document.getElementById('reload-msg').style.display='block'; setTimeout(() => { WEAPONS[currentWeaponIdx].ammo=WEAPONS[currentWeaponIdx].maxAmmo; document.getElementById('ammo-val').textContent=WEAPONS[currentWeaponIdx].ammo; document.getElementById('reload-msg').style.display='none'; isReloading=false; }, 1200); }
-function takeDamage(d, id) { if(adminMode) return; hp -= d; document.getElementById('health-bar').style.width = Math.max(0, hp) + "%"; if(hp <= 0) { hp = 100; playerGroup.position.set(0, 10, 0); addKillFeed(id, "Toi"); } }
+function takeDamage(d, id) { if(adminMode) return; hp -= d; document.getElementById('health-bar').style.width = Math.max(0, hp) + "%"; if(hp <= 0) { hp = 100; playerGroup.position.set(0, 50, 0); addKillFeed(id, "Toi"); } }
 function createBullet(d) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.4*d.sz, 0.4*d.sz, 1.2*d.sz), new THREE.MeshBasicMaterial({color:d.col})); m.position.set(d.x,d.y,d.z); m.lookAt(d.x+d.dx, d.y+d.dy, d.z+d.dz); scene.add(m); bullets.push({mesh:m, dir:new THREE.Vector3(d.dx,d.dy,d.dz), speed:d.spd, dmg:d.dmg, o:d.o}); }
 function jump() { if(jumpCount < 2 || infinityJumps) { vy = currentJumpForce; jumpCount++; playSound('jump', 0.2); } }
 function dash() { if(Date.now()-lastDash > 1200) { lastDash=Date.now(); dashPower=90; } }
