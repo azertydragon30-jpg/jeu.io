@@ -56,7 +56,7 @@
 </head>
 <body>
 
-<div id="login"><div class="box"><h1>Neon <span style="color:#00d4ff">Strike</span></h1><p style="color:#888; margin-bottom:20px;">Battle Royale Update v2.3</p><button id="btn-conn" onclick="connectToCloud()">Déploiement</button></div></div>
+<div id="login"><div class="box"><h1>Neon <span style="color:#00d4ff">Strike</span></h1><p style="color:#888; margin-bottom:20px;">Battle Royale Update v2.4 (Relief & Ultra-Details)</p><button id="btn-conn" onclick="connectToCloud()">Déploiement</button></div></div>
 <div id="pause-menu"><div class="menu-box"><h2>Pause</h2><button class="menu-btn" onclick="togglePause()">Reprendre</button><button class="menu-btn" onclick="alert('Z/Q/S/D: Bouger\nEspace: Sauter\nShift: Dash\n1-5: Armes\n@: Console Admin')">Commandes</button><button class="menu-btn red" onclick="location.reload()">Quitter</button></div></div>
 <div id="ui"><div class="hud-panel"><div style="font-size:24px; font-weight:bold;">Score: <span id="score">0</span></div></div><br><div class="hud-panel"><div>Santé</div><div id="health-bar-bg"><div id="health-bar"></div></div></div></div>
 <div id="leaderboard"><h3>Classement</h3><div id="leaderboard-list"></div></div>
@@ -158,7 +158,7 @@ function initGame() {
     addStars(); // Conservé mais agit plus comme des particules dans l'air
     
     playerGroup = createPlayerMesh(0x00d4ff, false); 
-    playerGroup.position.set(0, 5, 0); 
+    playerGroup.position.set(0, 50, 0); // Fait apparaitre le joueur un peu plus haut pour éviter d'être bloqué
     scene.add(playerGroup);
     
     for(let i=0; i<6; i++) spawnBot();
@@ -184,7 +184,56 @@ function addStars() {
 
 // --- ARCHITECTURE ---
 
-// NOUVEAU: Fonction pour générer une rampe (escalier pour collision fluide)
+// NOUVEAU: Fonction pour générer des collines (Relief en gradins)
+function createHill(cx, cz, maxRadius, maxHeight, steps) {
+    const stepR = maxRadius / steps;
+    const stepH = maxHeight / steps;
+    for(let i=0; i<steps; i++) {
+        let currentR = maxRadius - (i * stepR);
+        createWall(cx, i * stepH, cz, currentR, currentR, stepH, 0x449922); // Vert herbe
+    }
+}
+
+// NOUVEAU: Bâtiment 100 fois plus soigné (Piliers, Balcons, Vitres lumineuses, Antennes)
+function createUltraDetailedBuilding(x, z, w, d, floors, baseColor, accentColor) {
+    const floorH = 15;
+    for(let f=0; f<floors; f++) {
+        let y = f * floorH;
+        
+        // Base principale du bloc
+        createWall(x, y, z, w, d, floorH-1, baseColor);
+        
+        // Vitres détaillées (sur l'axe Z)
+        for(let wx = x - w/2 + 3; wx < x + w/2 - 2; wx += 6) {
+            const winGeo = new THREE.PlaneGeometry(3, floorH-6);
+            const winMat = new THREE.MeshStandardMaterial({color: 0x00d4ff, emissive: 0x00ffff, emissiveIntensity: 0.8});
+            const win1 = new THREE.Mesh(winGeo, winMat);
+            win1.position.set(wx, y + floorH/2, z + d/2 + 0.1);
+            scene.add(win1);
+            
+            const win2 = new THREE.Mesh(winGeo, winMat);
+            win2.position.set(wx, y + floorH/2, z - d/2 - 0.1);
+            win2.rotation.y = Math.PI;
+            scene.add(win2);
+        }
+        
+        // Balcons en relief
+        createWall(x, y, z + d/2 + 1.5, w + 3, 3, 2, accentColor);
+        createWall(x, y, z - d/2 - 1.5, w + 3, 3, 2, accentColor);
+        createWall(x + w/2 + 1.5, y, z, 3, d + 3, 2, accentColor);
+        createWall(x - w/2 - 1.5, y, z, 3, d + 3, 2, accentColor);
+        
+        // Piliers de renfort aux coins
+        createWall(x - w/2, y, z - d/2, 3, 3, floorH, 0x222222);
+        createWall(x + w/2, y, z - d/2, 3, 3, floorH, 0x222222);
+        createWall(x - w/2, y, z + d/2, 3, 3, floorH, 0x222222);
+        createWall(x + w/2, y, z + d/2, 3, 3, floorH, 0x222222);
+    }
+    // Toit et Antenne massive
+    createWall(x, floors * floorH, z, w - 2, d - 2, 2, accentColor);
+    createWall(x, floors * floorH + 2, z, 3, 3, 25, 0xff0055); // Antenne rouge
+}
+
 function createRampSteps(x, y, z, w, d, h, steps, isDirX) {
     const stepW = isDirX ? w / steps : w;
     const stepD = isDirX ? d : d / steps;
@@ -208,18 +257,16 @@ function createSpiralStair(x, y, z, radius, totalHeight, color) {
     }
 }
 
+// ANCIEN BATIMENT DETAILLE (Conservé selon tes règles)
 function createDetailedBuilding(x, z, w, d, floors, baseColor) {
     const floorH = 14;
     for(let f=0; f<floors; f++) {
         let y = f * floorH;
-        // Structure principale
         createWall(x, y, z, w, d, 0.5, 0x1a1a1a);
         createWall(x - w/2, y, z, 1, d, floorH, baseColor);
         createWall(x + w/2, y, z, 1, d, floorH, baseColor);
         createWall(x, y, z - d/2, w, 1, floorH, baseColor);
         createWall(x, y, z + d/2, w, 1, floorH, baseColor);
-        
-        // Fenêtres (Détail "Réaliste" conservé)
         for(let j=1; j<floorH-2; j+=4) {
             const winGeo = new THREE.PlaneGeometry(w-2, 1.5);
             const winMat = new THREE.MeshStandardMaterial({color: 0x00d4ff, emissive: 0x00d4ff, emissiveIntensity: Math.random()*2});
@@ -227,22 +274,21 @@ function createDetailedBuilding(x, z, w, d, floors, baseColor) {
             win.position.set(x, y + j + 2, z + d/2 + 0.6);
             scene.add(win);
         }
-
         if(f < floors - 1) createSpiralStair(x - w/4, y, z - d/4, 6, floorH, 0x222222);
     }
     createWall(x, floors * floorH, z, w + 2, d + 2, 1, baseColor);
 }
 
 // ARBRE MODIFIÉ EN STYLE PIN / SAPIN CARTOON
-function createCyberTree(x, z) {
+function createCyberTree(x, z, yOffset = 0) {
     const trunk = new THREE.Mesh(new THREE.BoxGeometry(2, 10, 2), new THREE.MeshStandardMaterial({color: 0x5c4033, roughness: 1}));
-    trunk.position.set(x, 5, z); scene.add(trunk);
+    trunk.position.set(x, 5 + yOffset, z); scene.add(trunk);
     const leaves = new THREE.Mesh(new THREE.ConeGeometry(6, 15, 8), new THREE.MeshStandardMaterial({color: 0x228b22, roughness: 0.9}));
-    leaves.position.set(x, 15, z); scene.add(leaves);
+    leaves.position.set(x, 15 + yOffset, z); scene.add(leaves);
 }
 
 function buildDiverseCity() {
-    // SOL HERBEUX VERT GAZON
+    // SOL HERBEUX VERT GAZON (Conservé)
     const groundGeo = new THREE.PlaneGeometry(3000, 3000);
     const groundMat = new THREE.MeshStandardMaterial({color: 0x55aa33, roughness: 0.9});
     const ground = new THREE.Mesh(groundGeo, groundMat);
@@ -256,21 +302,37 @@ function buildDiverseCity() {
 
     walls.push({ minX: -1500, maxX: 1500, minZ: -1500, maxZ: 1500, minY: -1, maxY: 0 });
 
-    // COULEURS BÂTIMENTS TYPE "TILTED TOWERS"
+    // --- AJOUT DU RELIEF (COLLINES MASIVES) ---
+    createHill(-300, -300, 200, 50, 6);
+    createHill(400, 200, 250, 70, 7);
+    createHill(-400, 400, 150, 40, 4);
+
+    // --- AJOUT DES NOUVEAUX BATIMENTS ULTRA-DETAILLÉS ---
+    createUltraDetailedBuilding(-300, -300, 50, 50, 4, 0xdddddd, 0x333333); // Au sommet de la colline 1
+    createUltraDetailedBuilding(400, 200, 60, 60, 6, 0x444455, 0xcc9900); // Au sommet de la colline 2
+    createUltraDetailedBuilding(0, 250, 80, 40, 5, 0x223344, 0x00d4ff); // Centre
+    createUltraDetailedBuilding(-400, 400, 40, 40, 3, 0xaaaaaa, 0xff0055); // Sur la petite colline
+
+    // ANCIENS COULEURS BÂTIMENTS TYPE "TILTED TOWERS" (Conservés)
     createDetailedBuilding(0, -100, 50, 50, 3, 0xaaaaaa); // Béton
     createDetailedBuilding(80, -100, 40, 40, 2, 0xcc5544); // Brique
     createDetailedBuilding(-120, 50, 60, 40, 2, 0x999999); // Métal
     createDetailedBuilding(120, 50, 40, 40, 4, 0xdddddd); // Béton clair
     
-    // FORT 1X1 EN BOIS (NOUVEAU)
-    createWall(200, 0, -10, 20, 1, 20, 0xcd853f); // Mur Z-
-    createWall(200, 0, 10, 20, 1, 20, 0xcd853f);  // Mur Z+
-    createWall(190, 0, 0, 1, 20, 20, 0xcd853f);   // Mur X-
-    createWall(210, 0, 0, 1, 20, 20, 0xcd853f);   // Mur X+
-    createRampSteps(200, 0, 0, 18, 18, 20, 10, false); // Rampe au centre
+    // FORT 1X1 EN BOIS (Conservé)
+    createWall(200, 0, -10, 20, 1, 20, 0xcd853f); 
+    createWall(200, 0, 10, 20, 1, 20, 0xcd853f);  
+    createWall(190, 0, 0, 1, 20, 20, 0xcd853f);   
+    createWall(210, 0, 0, 1, 20, 20, 0xcd853f);   
+    createRampSteps(200, 0, 0, 18, 18, 20, 10, false); 
     
     // PLUS D'ARBRES
-    for(let i=0; i<40; i++) createCyberTree((Math.random()-0.5)*800, (Math.random()-0.5)*800);
+    for(let i=0; i<60; i++) {
+        let tx = (Math.random()-0.5)*1200;
+        let tz = (Math.random()-0.5)*1200;
+        let ty = getFloorY(tx, tz, 200); // Fait apparaitre l'arbre sur le relief
+        createCyberTree(tx, tz, ty);
+    }
     
     createBridge(40, 28, -100, 60, 8, 0);
     createBridge(-60, 14, 50, 80, 6, 0);
@@ -281,7 +343,7 @@ function buildDiverseCity() {
         if(Math.abs(x)<50 && Math.abs(z)<50) x+=100;
         let h = 5 + Math.random()*15;
         createWall(x, 0, z, 8, 8, h, 0xaaaaaa);
-        if(Math.random()>0.7) createJumpPad(x, h, z); // Jumps conservés
+        if(Math.random()>0.7) createJumpPad(x, h, z); 
     }
 }
 
@@ -332,7 +394,7 @@ function spawnBot(isAlly = false) {
         hp: 100, maxHp: 100, vy: 0, lastShoot: 0, isAlly,
         dir: new THREE.Vector3(Math.random()-0.5, 0, Math.random()-0.5).normalize()
     };
-    bot.mesh.position.set((Math.random()-0.5)*200, 10, (Math.random()-0.5)*200);
+    bot.mesh.position.set((Math.random()-0.5)*200, 100, (Math.random()-0.5)*200); // Spawn plus haut
     scene.add(bot.mesh); bots.push(bot);
 }
 
@@ -423,12 +485,11 @@ function loop() {
         lastSync = now; updateLeaderboard(); 
     }
 
-    // --- MISE A JOUR CAMERA ANTI-BUG (COLLISION) CONSERVEE ---
     let cp = isSniper ? pitch : 0;
     let idealOffset = new THREE.Vector3(-Math.sin(yaw)*15, (isSniper?1.8:10), -Math.cos(yaw)*15);
     let camPos = playerGroup.position.clone().add(idealOffset);
     
-    // Raycasting pour éviter les murs derrière
+    // Raycasting pour éviter les murs derrière (Caméra gère maintenant le relief)
     const rayDir = idealOffset.clone().normalize();
     cameraRaycaster.set(playerGroup.position.clone().add(new THREE.Vector3(0, 2, 0)), rayDir);
     const intersects = cameraRaycaster.intersectObjects(wallMeshes);
@@ -464,7 +525,7 @@ function shoot() {
 }
 
 function reload() { if(isReloading) return; isReloading=true; document.getElementById('reload-msg').style.display='block'; setTimeout(() => { WEAPONS[currentWeaponIdx].ammo=WEAPONS[currentWeaponIdx].maxAmmo; document.getElementById('ammo-val').textContent=WEAPONS[currentWeaponIdx].ammo; document.getElementById('reload-msg').style.display='none'; isReloading=false; }, 1200); }
-function takeDamage(d, id) { if(adminMode) return; hp -= d; document.getElementById('health-bar').style.width = Math.max(0, hp) + "%"; if(hp <= 0) { hp = 100; playerGroup.position.set(0, 50, 0); addKillFeed(id, "Toi"); } }
+function takeDamage(d, id) { if(adminMode) return; hp -= d; document.getElementById('health-bar').style.width = Math.max(0, hp) + "%"; if(hp <= 0) { hp = 100; playerGroup.position.set(0, 150, 0); addKillFeed(id, "Toi"); } } // Respawn très haut pour éviter blocage
 function createBullet(d) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.4*d.sz, 0.4*d.sz, 1.2*d.sz), new THREE.MeshBasicMaterial({color:d.col})); m.position.set(d.x,d.y,d.z); m.lookAt(d.x+d.dx, d.y+d.dy, d.z+d.dz); scene.add(m); bullets.push({mesh:m, dir:new THREE.Vector3(d.dx,d.dy,d.dz), speed:d.spd, dmg:d.dmg, o:d.o}); }
 function jump() { if(jumpCount < 2 || infinityJumps) { vy = currentJumpForce; jumpCount++; playSound('jump', 0.2); } }
 function dash() { if(Date.now()-lastDash > 1200) { lastDash=Date.now(); dashPower=90; } }
