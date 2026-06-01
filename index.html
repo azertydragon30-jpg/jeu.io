@@ -3,12 +3,12 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <link rel="icon" href="data:,"> <!-- Évite l'erreur favicon 404 -->
-    <title>Neon Strike - Chromatica City</title>
+    <link rel="icon" href="data:,">
+    <title>Neon Strike - Battle Royale Update</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
-        html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: #fff; font-family: 'Segoe UI', sans-serif; user-select: none; -webkit-touch-callout: none; touch-action: none; }
+        html, body { margin: 0; height: 100%; overflow: hidden; background: #87CEEB; color: #fff; font-family: 'Segoe UI', sans-serif; user-select: none; -webkit-touch-callout: none; touch-action: none; }
         #ui { position: absolute; top: 10px; left: 10px; pointer-events: none; width: 100%; z-index: 10; }
         .hud-panel { background: rgba(0,0,0,0.6); padding: 10px; border-left: 4px solid #00d4ff; margin-bottom: 5px; backdrop-filter: blur(4px); display: inline-block; }
         #health-bar-bg { width: 200px; height: 15px; background: #333; margin-top: 5px; transform: skewX(-20deg); border: 1px solid #555; overflow: hidden; }
@@ -56,7 +56,7 @@
 </head>
 <body>
 
-<div id="login"><div class="box"><h1>Neon <span style="color:#00d4ff">Strike</span></h1><p style="color:#888; margin-bottom:20px;">Chromatica City Update v2.2</p><button id="btn-conn" onclick="connectToCloud()">Déploiement</button></div></div>
+<div id="login"><div class="box"><h1>Neon <span style="color:#00d4ff">Strike</span></h1><p style="color:#888; margin-bottom:20px;">Battle Royale Update v2.3</p><button id="btn-conn" onclick="connectToCloud()">Déploiement</button></div></div>
 <div id="pause-menu"><div class="menu-box"><h2>Pause</h2><button class="menu-btn" onclick="togglePause()">Reprendre</button><button class="menu-btn" onclick="alert('Z/Q/S/D: Bouger\nEspace: Sauter\nShift: Dash\n1-5: Armes\n@: Console Admin')">Commandes</button><button class="menu-btn red" onclick="location.reload()">Quitter</button></div></div>
 <div id="ui"><div class="hud-panel"><div style="font-size:24px; font-weight:bold;">Score: <span id="score">0</span></div></div><br><div class="hud-panel"><div>Santé</div><div id="health-bar-bg"><div id="health-bar"></div></div></div></div>
 <div id="leaderboard"><h3>Classement</h3><div id="leaderboard-list"></div></div>
@@ -136,19 +136,26 @@ function playSound(type, vol=0.1) {
 
 function initGame() {
     scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x05050a, 0.0025);
+    
+    // NOUVEAU CIEL FORTNITE
+    scene.fog = new THREE.FogExp2(0x87CEEB, 0.0015);
     camera = new THREE.PerspectiveCamera(80, window.innerWidth/window.innerHeight, 0.1, 3000);
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setClearColor(0x020205);
+    
+    // COULEUR DE FOND CIEL
+    renderer.setClearColor(0x87CEEB);
     document.body.appendChild(renderer.domElement);
     
-    scene.add(new THREE.AmbientLight(0x4040ff, 0.3));
-    const sun = new THREE.DirectionalLight(0xffffff, 0.6); sun.position.set(50, 200, 50); scene.add(sun);
+    // NOUVELLE LUMIÈRE PLUS FORTE
+    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+    const sun = new THREE.DirectionalLight(0xffffff, 0.9); 
+    sun.position.set(100, 300, 100); 
+    scene.add(sun);
     
     buildDiverseCity();
-    addStars();
+    addStars(); // Conservé mais agit plus comme des particules dans l'air
     
     playerGroup = createPlayerMesh(0x00d4ff, false); 
     playerGroup.position.set(0, 5, 0); 
@@ -177,6 +184,19 @@ function addStars() {
 
 // --- ARCHITECTURE ---
 
+// NOUVEAU: Fonction pour générer une rampe (escalier pour collision fluide)
+function createRampSteps(x, y, z, w, d, h, steps, isDirX) {
+    const stepW = isDirX ? w / steps : w;
+    const stepD = isDirX ? d : d / steps;
+    const stepH = h / steps;
+    for(let i=0; i<steps; i++) {
+        let sx = x + (isDirX ? (-w/2 + stepW/2 + i*stepW) : 0);
+        let sz = z + (isDirX ? 0 : (-d/2 + stepD/2 + i*stepD));
+        let currentH = stepH * (i + 1);
+        createWall(sx, y, sz, stepW, stepD, currentH, 0xcd853f); // Couleur Bois
+    }
+}
+
 function createSpiralStair(x, y, z, radius, totalHeight, color) {
     const stepsCount = 18;
     const stepH = totalHeight / stepsCount;
@@ -199,7 +219,7 @@ function createDetailedBuilding(x, z, w, d, floors, baseColor) {
         createWall(x, y, z - d/2, w, 1, floorH, baseColor);
         createWall(x, y, z + d/2, w, 1, floorH, baseColor);
         
-        // Fenêtres (Détail "Réaliste")
+        // Fenêtres (Détail "Réaliste" conservé)
         for(let j=1; j<floorH-2; j+=4) {
             const winGeo = new THREE.PlaneGeometry(w-2, 1.5);
             const winMat = new THREE.MeshStandardMaterial({color: 0x00d4ff, emissive: 0x00d4ff, emissiveIntensity: Math.random()*2});
@@ -213,33 +233,44 @@ function createDetailedBuilding(x, z, w, d, floors, baseColor) {
     createWall(x, floors * floorH, z, w + 2, d + 2, 1, baseColor);
 }
 
+// ARBRE MODIFIÉ EN STYLE PIN / SAPIN CARTOON
 function createCyberTree(x, z) {
-    const trunk = new THREE.Mesh(new THREE.BoxGeometry(2, 10, 2), new THREE.MeshStandardMaterial({color: 0x111111}));
+    const trunk = new THREE.Mesh(new THREE.BoxGeometry(2, 10, 2), new THREE.MeshStandardMaterial({color: 0x5c4033, roughness: 1}));
     trunk.position.set(x, 5, z); scene.add(trunk);
-    const leaves = new THREE.Mesh(new THREE.SphereGeometry(5, 8, 8), new THREE.MeshStandardMaterial({color: 0x00ff66, emissive: 0x00ff66, emissiveIntensity: 0.5, wireframe: true}));
-    leaves.position.set(x, 12, z); scene.add(leaves);
+    const leaves = new THREE.Mesh(new THREE.ConeGeometry(6, 15, 8), new THREE.MeshStandardMaterial({color: 0x228b22, roughness: 0.9}));
+    leaves.position.set(x, 15, z); scene.add(leaves);
 }
 
 function buildDiverseCity() {
-    // Sol avec grille
+    // SOL HERBEUX VERT GAZON
     const groundGeo = new THREE.PlaneGeometry(3000, 3000);
-    const groundMat = new THREE.MeshStandardMaterial({color: 0x08080a});
+    const groundMat = new THREE.MeshStandardMaterial({color: 0x55aa33, roughness: 0.9});
     const ground = new THREE.Mesh(groundGeo, groundMat);
     ground.rotation.x = -Math.PI/2;
     scene.add(ground);
     
-    const grid = new THREE.GridHelper(3000, 100, 0x00d4ff, 0x111122);
+    // Grille teintée en vert
+    const grid = new THREE.GridHelper(3000, 100, 0x449922, 0x449922);
     grid.position.y = 0.05;
     scene.add(grid);
 
     walls.push({ minX: -1500, maxX: 1500, minZ: -1500, maxZ: 1500, minY: -1, maxY: 0 });
 
-    createDetailedBuilding(0, -100, 50, 50, 3, 0x002244);
-    createDetailedBuilding(80, -100, 40, 40, 2, 0x003366);
-    createDetailedBuilding(-120, 50, 60, 40, 2, 0x442200);
-    createDetailedBuilding(120, 50, 40, 40, 4, 0x113311);
+    // COULEURS BÂTIMENTS TYPE "TILTED TOWERS"
+    createDetailedBuilding(0, -100, 50, 50, 3, 0xaaaaaa); // Béton
+    createDetailedBuilding(80, -100, 40, 40, 2, 0xcc5544); // Brique
+    createDetailedBuilding(-120, 50, 60, 40, 2, 0x999999); // Métal
+    createDetailedBuilding(120, 50, 40, 40, 4, 0xdddddd); // Béton clair
     
-    for(let i=0; i<15; i++) createCyberTree((Math.random()-0.5)*400, (Math.random()-0.5)*400);
+    // FORT 1X1 EN BOIS (NOUVEAU)
+    createWall(200, 0, -10, 20, 1, 20, 0xcd853f); // Mur Z-
+    createWall(200, 0, 10, 20, 1, 20, 0xcd853f);  // Mur Z+
+    createWall(190, 0, 0, 1, 20, 20, 0xcd853f);   // Mur X-
+    createWall(210, 0, 0, 1, 20, 20, 0xcd853f);   // Mur X+
+    createRampSteps(200, 0, 0, 18, 18, 20, 10, false); // Rampe au centre
+    
+    // PLUS D'ARBRES
+    for(let i=0; i<40; i++) createCyberTree((Math.random()-0.5)*800, (Math.random()-0.5)*800);
     
     createBridge(40, 28, -100, 60, 8, 0);
     createBridge(-60, 14, 50, 80, 6, 0);
@@ -249,14 +280,14 @@ function buildDiverseCity() {
         let z = (Math.random()-0.5)*600;
         if(Math.abs(x)<50 && Math.abs(z)<50) x+=100;
         let h = 5 + Math.random()*15;
-        createWall(x, 0, z, 8, 8, h, 0x1a1a20);
-        if(Math.random()>0.7) createJumpPad(x, h, z);
+        createWall(x, 0, z, 8, 8, h, 0xaaaaaa);
+        if(Math.random()>0.7) createJumpPad(x, h, z); // Jumps conservés
     }
 }
 
 function createWall(x, y, z, w, d, h, color) {
     const geo = new THREE.BoxGeometry(w, h, d);
-    const mat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.2, metalness: 0.8 });
+    const mat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.8 });
     const m = new THREE.Mesh(geo, mat); 
     m.position.set(x, y + h/2, z); 
     scene.add(m);
@@ -392,7 +423,7 @@ function loop() {
         lastSync = now; updateLeaderboard(); 
     }
 
-    // --- MISE A JOUR CAMERA ANTI-BUG (COLLISION) ---
+    // --- MISE A JOUR CAMERA ANTI-BUG (COLLISION) CONSERVEE ---
     let cp = isSniper ? pitch : 0;
     let idealOffset = new THREE.Vector3(-Math.sin(yaw)*15, (isSniper?1.8:10), -Math.cos(yaw)*15);
     let camPos = playerGroup.position.clone().add(idealOffset);
